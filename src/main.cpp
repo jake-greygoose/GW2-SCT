@@ -30,7 +30,6 @@ uintptr_t mod_imgui();
 uintptr_t mod_options();
 
 GW2_SCT::SCTMain* sct;
-bool isArcdpsOutdated = false;
 
 /* dll main -- winapi */
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD ulReasonForCall, LPVOID lpReserved) {
@@ -65,9 +64,6 @@ extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiCont
 
 	std::string arcversString(arcvers);
 	arcversString = arcversString.substr(0, arcversString.find_first_of('.'));
-	std::string arcreqString(ARC_VERSION_REQUIRED);
-	arcreqString = arcreqString.substr(0, arcreqString.find_first_of('.'));
-	isArcdpsOutdated = arcversString.compare(arcreqString) < 0;
 	
 	if (d3dversion == 11) {
 		GW2_SCT::d3d11SwapChain = (IDXGISwapChain*)id3dptr;
@@ -109,19 +105,7 @@ uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 
 uintptr_t mod_imgui() {
 	if (!ImGui::HasWindow()) return 0;
-	if (isArcdpsOutdated) {
-		ImGui::OpenPopup(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Title));
-	}
-	if (ImGui::BeginPopupModal(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Title))) {
-		std::string s = std::string(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Content)) + "\n\n" + std::string(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Found_Version)) + ": " + std::string(arcvers) + "\n" + std::string(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Required_Version)) + ": " + ARC_VERSION_REQUIRED;
-		ImGui::Text(s.c_str());
-		ImGui::Separator();
-		if (ImGui::Button(langStringG(GW2_SCT::LanguageKey::Outdated_Popup_Confirmation), ImVec2(120, 0))) {
-			isArcdpsOutdated = false;
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
+
 	return sct->UIUpdate();
 }
 
