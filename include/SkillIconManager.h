@@ -8,22 +8,25 @@
 #include <imgui.h>
 #include <safe_ptr.h>
 #include <atomic>
-
 namespace GW2_SCT {
-
 	class SkillIcon {
 	public:
 		ImVec2 draw(ImVec2 pos, ImVec2 size, ImU32 color = 0xFFFFFFFF);
 		SkillIcon(std::shared_ptr<std::vector<BYTE>> fileData, uint32_t skillID);
 		~SkillIcon();
+
+		static void ProcessPendingIconTextures();
+
 	private:
-		void loadTexture(SkillIconDisplayType displayType);
+		void createTextureNow(SkillIconDisplayType displayType);
+		void requestTextureCreation(SkillIconDisplayType displayType);
+
 		std::unordered_map<SkillIconDisplayType, ImmutableTexture*> textures;
 		std::shared_ptr<std::vector<BYTE>> fileData;
 		uint32_t skillID;
 		std::unordered_map<SkillIconDisplayType, bool> texturesCreated = {};
+		std::unordered_map<SkillIconDisplayType, bool> textureCreationRequested = {};
 	};
-
 	class SkillIconManager {
 	public:
 		static void init();
@@ -40,7 +43,6 @@ namespace GW2_SCT {
 		static sf::contfree_safe_ptr<std::unordered_map<uint32_t, SkillIcon>> loadedIcons;
 		static std::thread loadThread;
 		static std::atomic<bool> keepLoadThreadRunning;
-
 		static long skillIconsEnabledCallbackId;
 		static long preloadAllSkillIconsId;
 	};

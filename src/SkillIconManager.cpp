@@ -9,6 +9,7 @@
 #include "Options.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include "Texture.h"
 
 #pragma comment(lib, "libssl")
 #pragma comment(lib, "libcrypto")
@@ -29,9 +30,8 @@ nlohmann::json getJSON(std::string url, std::function<void(httplib::Headers)> ca
 
 std::shared_ptr<std::vector<BYTE>> loadBinaryFileData(std::string filename) {
 	std::ifstream in(filename, std::ios::binary); //open file
-	in >> std::noskipws;  //we don't want to skip spaces        
+	in >> std::noskipws;     
 	
-	//initialize a vector with a pair of istream_iterators
 	std::shared_ptr<std::vector<BYTE>> ret = std::make_shared<std::vector<BYTE>>(std::istream_iterator<BYTE>(in), std::istream_iterator<BYTE>());
 	return ret;
 }
@@ -321,16 +321,17 @@ GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
 ImVec2 GW2_SCT::SkillIcon::draw(ImVec2 pos, ImVec2 size, ImU32 color) {
 	SkillIconDisplayType requestedDisplayType = Options::get()->skillIconsDisplayType;
 	if (!texturesCreated[requestedDisplayType]) {
-		loadTexture(requestedDisplayType);
+		requestTextureCreation(requestedDisplayType);
 	}
 	if (textures[requestedDisplayType] == nullptr) {
-		return ImVec2(0,0);
+		return ImVec2(0, 0);
 	}
 
 	ImVec2 end(pos.x + size.x, pos.y + size.y);
 	if (textures[requestedDisplayType] != nullptr) {
 		textures[requestedDisplayType]->draw(pos, size, color);
-	} else {
+	}
+	else {
 		return ImVec2(0, 0);
 	}
 	return size;
@@ -475,8 +476,9 @@ void convertRGBAToARGBAndCull(unsigned char* image_data, int image_width, int im
 	}
 }
 
-void GW2_SCT::SkillIcon::loadTexture(GW2_SCT::SkillIconDisplayType displayType) {
+void GW2_SCT::SkillIcon::createTextureNow(GW2_SCT::SkillIconDisplayType displayType) {
 	texturesCreated[displayType] = true;
+	textureCreationRequested[displayType] = false;
 
 	if (fileData->size() < 100) {
 		LOG("Icon: ", std::to_string(skillID));
@@ -497,7 +499,7 @@ void GW2_SCT::SkillIcon::loadTexture(GW2_SCT::SkillIconDisplayType displayType) 
 	}
 
 	convertRGBAToARGBAndCull(image_data, image_width, image_height, displayType);
-	
+
 	// Upload texture to graphics system
 	if (textures[displayType] != nullptr) ImmutableTexture::Release(textures[displayType]);
 	textures[displayType] = ImmutableTexture::Create(image_width, image_height, image_data);
@@ -506,4 +508,46 @@ void GW2_SCT::SkillIcon::loadTexture(GW2_SCT::SkillIconDisplayType displayType) 
 	}
 
 	stbi_image_free(image_data);
+}
+
+
+struct PendingTextureData {
+	GW2_SCT::SkillIconDisplayType displayType;
+	GW2_SCT::SkillIcon* icon;
+};
+
+namespace GW2_SCT {
+	static std::queue<std::shared_ptr<PendingTextureData>> pendingIconTextures;
+	static std::mutex pendingIconTexturesMutex;
+}
+
+void GW2_SCT::SkillIcon::requestTextureCreation(GW2_SCT::SkillIconDisplayType displayType) {
+	if (texturesCreated[displayType] || textureCreationRequested[displayType]) {
+		return;
+	}
+
+	textureCreationRequested[displayType] = true;
+
+	auto pendingData = std::make_shared<PendingTextureData>();
+	pendingData->displayType = displayType;
+	pendingData->icon = this;
+
+	std::lock_guard<std::mutex> lock(pendingIconTexturesMutex);
+	pendingIconTextures.push(pendingData);
+}
+
+void GW2_SCT::SkillIcon::ProcessPendingIconTextures() {
+	std::lock_guard<std::mutex> lock(pendingIconTexturesMutex);
+	const int maxTexturesPerFrame = 3;
+	int processed = 0;
+
+	while (!pendingIconTextures.empty() && processed < maxTexturesPerFrame) {
+		auto pendingData = pendingIconTextures.front();
+		pendingIconTextures.pop();
+
+		if (pendingData && pendingData->icon) {
+			pendingData->icon->createTextureNow(pendingData->displayType);
+		}
+		processed++;
+	}
 }

@@ -9,6 +9,7 @@
 #include "FontManager.h"
 #include "Language.h"
 #include "ExampleMessageOptions.h"
+#include "Texture.h"
 #include <chrono>
 
 #if _DEBUG
@@ -41,11 +42,11 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 		}
 		currentScrollAreaPushBackCallbackId = newProfile->scrollAreaOptions.addOnPushBackCallback([=](const std::shared_ptr<scroll_area_options_struct>& newVal) {
 			scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
-		});
+			});
 		currentScrollAreaEraseCallbackId = newProfile->scrollAreaOptions.addOnEraseCallback([=](int pos) {
 			scrollAreas.erase(std::begin(scrollAreas) + pos);
+			});
 		});
-	});
 	LOG("Set up options changing hook");
 	SkillIconManager::init();
 	LOG("Started skill icon manager");
@@ -71,10 +72,12 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 		LOG("Found d3d11 device.");
 		if (d3D11Context != nullptr) {
 			LOG("Found d3d11 context aswell.");
-		} else {
+		}
+		else {
 			LOG("But found no d3d11 context.");
 		}
-	} else {
+	}
+	else {
 		LOG("Found no d3 device (version: ", d3dversion, ")!");
 	}
 
@@ -111,12 +114,13 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 		catch (std::exception& e) {
 			LOG("Error parsing remap.json");
 		}
-	} else {
+	}
+	else {
 		LOG("No remap.json file loaded");
 	}
 
 	ExampleMessageOptions::setMain(this);
-	
+
 	/* for arcdps */
 	memset(&arc_exports, 0, sizeof(arcdps_exports));
 	arc_exports.size = sizeof(arcdps_exports);
@@ -149,7 +153,7 @@ uintptr_t GW2_SCT::SCTMain::WindowUpdate(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 	return uMsg;
 }
 
-uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent * ev, ag * src, ag * dst, char * skillname, uint64_t id, uint64_t revision) {
+uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) {
 	if (ev != nullptr) {
 		if (revision == 1) {
 			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
@@ -165,11 +169,11 @@ uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent * ev, ag * src, ag * dst, c
 			}
 		}
 	}
-	
+
 	return 0;
 }
 
-uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent * ev, ag * src, ag * dst, char * skillname, uint64_t id, uint64_t revision) {
+uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) {
 	/* combat event. skillname may be null. non-null skillname will remain static until module is unloaded. refer to evtc notes for complete detail */
 	if (ev) {
 		if (revision == 1) {
@@ -287,7 +291,8 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent * ev, ag * src, ag * dst, 
 					}
 				}
 			}
-		} else {
+		}
+		else {
 			/* default names */
 			if (!src->name || !strlen(src->name)) src->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Source));
 			if (!dst->name || !strlen(dst->name)) dst->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Target));
@@ -385,6 +390,12 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 #if _DEBUG
 	auto start_time = std::chrono::high_resolution_clock::now();
 #endif
+
+	GW2_SCT::Texture::BeginPresentCycle();
+	GW2_SCT::Texture::ProcessPendingCreations();
+	GW2_SCT::SkillIcon::ProcessPendingIconTextures();
+	GW2_SCT::FontType::ProcessPendingAtlasUpdates();
+
 	FontType::ensureAtlasCreation();
 	Options::paint();
 	ExampleMessageOptions::paint();
@@ -400,6 +411,9 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 
 		ImGui::End();
 	}
+
+	GW2_SCT::Texture::EndPresentCycle();
+
 #if _DEBUG
 	auto time = std::chrono::high_resolution_clock::now() - start_time;
 	uiFrames++;

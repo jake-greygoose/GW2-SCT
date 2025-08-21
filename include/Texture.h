@@ -13,21 +13,30 @@ namespace GW2_SCT {
 		virtual void internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) = 0;
 		virtual bool internalCreate() = 0;
 		void ensureCreation();
+
+		bool isReady() const { return _created; }
+
+		static void BeginPresentCycle();
+		static void EndPresentCycle();
+		static void ProcessPendingCreations();
+
 	protected:
 		int _textureWidth;
 		int _textureHeight;
 		bool _created = false;
 		int _creationTries = 0;
 		std::chrono::time_point<std::chrono::system_clock> _nextCreationTry;
-	};
+		bool _creationRequested = false;
 
+		void requestCreation();
+		void tryCreateNow();
+	};
 	class ImmutableTexture : public Texture {
 	public:
 		static ImmutableTexture* Create(int width, int height, unsigned char* data);
 		static void Release(ImmutableTexture*);
 		ImmutableTexture(int width, int height);
 	};
-
 	class MutableTexture : public Texture {
 	public:
 		typedef struct {
@@ -46,7 +55,6 @@ namespace GW2_SCT {
 	private:
 		bool _isCurrentlyUpdating = false;
 	};
-
 	class TextureD3D11 {
 	protected:
 		TextureD3D11(int width, int height, unsigned char* data);
@@ -65,7 +73,6 @@ namespace GW2_SCT {
 		void internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) override;
 		bool internalCreate() override;
 	};
-
 	class MutableTextureD3D11 : public MutableTexture, public TextureD3D11 {
 	public:
 		MutableTextureD3D11(int width, int height);
@@ -81,3 +88,5 @@ namespace GW2_SCT {
 		std::mutex _stagingMutex;
 	};
 }
+
+extern std::string getTimestamp();

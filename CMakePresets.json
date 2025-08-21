@@ -1,0 +1,38 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "vs2022-x64-static",
+      "displayName": "VS2022 x64 (static, DXSDK + OpenSSL)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build",
+      "cacheVariables": {
+        "GW2_PATH": "C:\\Guild Wars 2",
+        "GW2_SUBPATH": "\\addons",
+        "DXSDK_DIR": "C:\\Program Files (x86)\\Microsoft DirectX SDK (June 2010)",
+        "OPENSSL_ROOT_DIR": "$env{USERPROFILE}\\vcpkg\\installed\\x64-windows-static",
+        "OPENSSL_USE_STATIC_LIBS": "ON",
+        "CMAKE_FIND_PACKAGE_PREFER_CONFIG": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "$env{USERPROFILE}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
+        "CMAKE_CXX_FLAGS": "/EHsc"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vs2022-x64-static-Debug",
+      "displayName": "Build Debug",
+      "configurePreset": "vs2022-x64-static",
+      "configuration": "Debug"
+    },
+    {
+      "name": "vs2022-x64-static-Release",
+      "displayName": "Build Release",
+      "configurePreset": "vs2022-x64-static",
+      "configuration": "Release"
+    }
+  ]
+}

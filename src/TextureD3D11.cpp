@@ -1,5 +1,6 @@
 #include "Texture.h"
 #include "Common.h"
+#include <thread>
 
 GW2_SCT::TextureD3D11::TextureD3D11(int width, int height, unsigned char* data) : width(width), height(height) {
     if (data == nullptr) {
@@ -7,7 +8,7 @@ GW2_SCT::TextureD3D11::TextureD3D11(int width, int height, unsigned char* data) 
     }
     else {
         size_t size = sizeof(unsigned char) * width * height * 4;
-        this->data = (unsigned char*) malloc(size);
+        this->data = (unsigned char*)malloc(size);
         if (this->data != nullptr) {
             memcpy(this->data, data, size);
         }
@@ -17,10 +18,31 @@ GW2_SCT::TextureD3D11::TextureD3D11(int width, int height, unsigned char* data) 
 GW2_SCT::TextureD3D11::~TextureD3D11() {
     if (_texture11View != nullptr) _texture11View->Release();
     if (_texture11 != nullptr) _texture11->Release();
+    if (data != nullptr) {
+        free(data);
+        data = nullptr;
+    }
 }
 
 bool GW2_SCT::TextureD3D11::create() {
-    if (d3Device11 == nullptr) return false;
+    static std::thread::id mainThreadId = std::this_thread::get_id();
+    if (std::this_thread::get_id() != mainThreadId) {
+        LOG("ERROR: D3D11 texture creation attempted from wrong thread - AMD will crash!");
+        return false;
+    }
+
+    if (d3Device11 == nullptr) {
+        LOG("Cannot create D3D11 texture: d3Device11 is null");
+        return false;
+    }
+
+    if (_texture11 != nullptr) {
+        LOG("D3D11 texture already created, skipping recreation");
+        return true;
+    }
+
+    LOG("Creating D3D11 texture on main thread - size: ", width, "x", height);
+
     HRESULT res;
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
@@ -43,12 +65,14 @@ bool GW2_SCT::TextureD3D11::create() {
             LOG("d3Device11->CreateTexture2D failed: " + std::to_string(res));
             return false;
         }
+        LOG("D3D11 texture created successfully with data");
     }
     else {
         if (FAILED(res = d3Device11->CreateTexture2D(&desc, NULL, &_texture11))) {
             LOG("d3Device11->CreateTexture2D failed: " + std::to_string(res));
             return false;
         }
+        LOG("D3D11 texture created successfully without data");
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -61,43 +85,73 @@ bool GW2_SCT::TextureD3D11::create() {
     if (FAILED(res = d3Device11->CreateShaderResourceView(_texture11, &srvDesc, &_texture11View))) {
         LOG("d3Device11->CreateShaderResourceView failed: " + std::to_string(res));
         _texture11->Release();
+        _texture11 = nullptr;
         return false;
     }
+
+    if (data != nullptr) {
+        free(data);
+        data = nullptr;
+    }
+
+    LOG("D3D11 texture and shader resource view created successfully");
     return true;
 }
 
 GW2_SCT::ImmutableTextureD3D11::ImmutableTextureD3D11(int width, int height, unsigned char* data)
-    : TextureD3D11(width, height, data), ImmutableTexture(width, height) {}
+    : TextureD3D11(width, height, data), ImmutableTexture(width, height) {
+}
 
 void GW2_SCT::ImmutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) {
-    ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+    if (_texture11View != nullptr) {
+        ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+    }
+    else {
+        LOG("WARNING: Attempting to draw with null texture view");
+    }
 }
 
 bool GW2_SCT::ImmutableTextureD3D11::internalCreate() {
+    LOG("ImmutableTextureD3D11: Calling create()");
     return create();
 }
 
 GW2_SCT::MutableTextureD3D11::MutableTextureD3D11(int width, int height)
-    : TextureD3D11(width, height, nullptr), MutableTexture(width, height) {}
+    : TextureD3D11(width, height, nullptr), MutableTexture(width, height) {
+}
 
 GW2_SCT::MutableTextureD3D11::~MutableTextureD3D11() {
     if (_texture11Staging != nullptr) _texture11Staging->Release();
 }
 
 void GW2_SCT::MutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) {
-    if (_stagingChanged && d3D11Context != nullptr) {
+    if (_stagingChanged && d3D11Context != nullptr && _texture11View != nullptr) {
         std::lock_guard lock(_stagingMutex);
-        d3D11Context->CopyResource(_texture11, _texture11Staging);
-        _stagingChanged = false;
+        if (_stagingChanged) {
+            d3D11Context->CopyResource(_texture11, _texture11Staging);
+            _stagingChanged = false;
+        }
     }
-    ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+    if (_texture11View != nullptr) {
+        ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+    }
+    else {
+        LOG("WARNING: Attempting to draw mutable texture with null texture view");
+    }
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalCreate() {
+    LOG("MutableTextureD3D11: Creating main texture");
     if (!create()) return false;
 
     if (d3Device11 == nullptr) return false;
 
+    if (_texture11Staging != nullptr) {
+        LOG("MutableTextureD3D11: Staging texture already created, skipping recreation");
+        return true;
+    }
+
+    LOG("MutableTextureD3D11: Creating staging texture");
     HRESULT res;
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
@@ -111,20 +165,22 @@ bool GW2_SCT::MutableTextureD3D11::internalCreate() {
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE | D3D11_CPU_ACCESS_READ;
 
     if (FAILED(res = d3Device11->CreateTexture2D(&desc, NULL, &_texture11Staging))) {
-        LOG("d3Device11->CreateTexture2D failed: " + std::to_string(res));
+        LOG("d3Device11->CreateTexture2D (staging) failed: " + std::to_string(res));
         return false;
     }
+
+    LOG("MutableTextureD3D11: Staging texture created successfully");
     return true;
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalStartUpdate(ImVec2 pos, ImVec2 size, UpdateData* out) {
-    if (d3D11Context == nullptr) return false;
+    if (d3D11Context == nullptr || _texture11Staging == nullptr) return false;
 
     HRESULT res;
     D3D11_MAPPED_SUBRESOURCE mapped;
     std::lock_guard lock(_stagingMutex);
     if (FAILED(res = d3D11Context->Map(_texture11Staging, 0, D3D11_MAP_READ_WRITE, 0, &mapped))) {
-        LOG("Could not map staging texture.", std::to_string(res));;
+        LOG("Could not map staging texture: " + std::to_string(res));
         return false;
     }
     out->data = (unsigned char*)mapped.pData + static_cast<int>(pos.y) * mapped.RowPitch + static_cast<int>(pos.x) * 4;
@@ -134,7 +190,7 @@ bool GW2_SCT::MutableTextureD3D11::internalStartUpdate(ImVec2 pos, ImVec2 size, 
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalEndUpdate() {
-    if (d3D11Context == nullptr) return false;
+    if (d3D11Context == nullptr || _texture11Staging == nullptr) return false;
 
     d3D11Context->Unmap(_texture11Staging, 0);
     _stagingChanged = true;

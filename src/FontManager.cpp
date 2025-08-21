@@ -1,6 +1,10 @@
 #include "FontManager.h"
 #include <iostream>
 #include "Common.h"
+#include "Texture.h"
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -10,19 +14,31 @@
 
 #define FONT_TEXTURE_SIZE 1024
 
+// Helper function to get timestamp for logging
+std::string getTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time_t), "%H:%M:%S");
+    ss << "." << std::setfill('0') << std::setw(3) << ms.count();
+    return ss.str();
+}
+
 static unsigned int stb_decompress_length(const unsigned char* input);
 static unsigned int stb_decompress(unsigned char* output, const unsigned char* input, unsigned int length);
-static const char*  GetDefaultCompressedFontDataTTFBase85();
+static const char* GetDefaultCompressedFontDataTTFBase85();
 static unsigned int Decode85Byte(char c) { return c >= '\\' ? c - 36 : c - 35; }
 static void         Decode85(const unsigned char* src, unsigned char* dst)
 {
-	while (*src)
-	{
-		unsigned int tmp = Decode85Byte(src[0]) + 85 * (Decode85Byte(src[1]) + 85 * (Decode85Byte(src[2]) + 85 * (Decode85Byte(src[3]) + 85 * Decode85Byte(src[4]))));
-		dst[0] = ((tmp >> 0) & 0xFF); dst[1] = ((tmp >> 8) & 0xFF); dst[2] = ((tmp >> 16) & 0xFF); dst[3] = ((tmp >> 24) & 0xFF);   // We can't assume little-endianness.
-		src += 5;
-		dst += 4;
-	}
+    while (*src)
+    {
+        unsigned int tmp = Decode85Byte(src[0]) + 85 * (Decode85Byte(src[1]) + 85 * (Decode85Byte(src[2]) + 85 * (Decode85Byte(src[3]) + 85 * Decode85Byte(src[4]))));
+        dst[0] = ((tmp >> 0) & 0xFF); dst[1] = ((tmp >> 8) & 0xFF); dst[2] = ((tmp >> 16) & 0xFF); dst[3] = ((tmp >> 24) & 0xFF);   // We can't assume little-endianness.
+        src += 5;
+        dst += 4;
+    }
 }
 
 std::unordered_map<const stbtt_fontinfo*, std::unordered_map<float, std::unordered_map<int, GW2_SCT::Glyph*>>> GW2_SCT::Glyph::_knownGlyphs = {};
@@ -32,7 +48,8 @@ GW2_SCT::Glyph* GW2_SCT::Glyph::GetGlyph(const stbtt_fontinfo* font, float scale
     auto it = fontAtScale.find(codepoint);
     if (it != fontAtScale.end()) {
         return it->second;
-    } else {
+    }
+    else {
         return _knownGlyphs[font][scale][codepoint] = new Glyph(font, scale, codepoint, ascent);
     }
 }
@@ -87,7 +104,9 @@ GW2_SCT::Glyph::Glyph(const stbtt_fontinfo* font, float scale, int codepoint, in
     _width = (size_t)_x2 - _x1;
     _height = (size_t)_y2 - _y1;
     _offsetTop = _scale * ascent + _y1;
-    stbtt_GetCodepointHMetrics(font, codepoint, &_advance, &_lsb);
+    int lsb_i = 0;
+    stbtt_GetCodepointHMetrics(font, codepoint, &_advance, &lsb_i);
+    _lsb = static_cast<float>(lsb_i) * _scale;
     _lsb *= _scale;
 }
 
@@ -97,13 +116,17 @@ float GW2_SCT::Glyph::getRealAdvanceAndKerning(int nextCodepoint) {
     auto it = _advanceAndKerningCache.find(nextCodepoint);
     if (it != _advanceAndKerningCache.end()) {
         return it->second;
-    } else {
+    }
+    else {
         return _advanceAndKerningCache[nextCodepoint] = (float)(_advance + stbtt_GetCodepointKernAdvance(_font, _codepoint, nextCodepoint)) * _scale;
     }
 }
 
 std::vector<GW2_SCT::FontType::GlyphAtlas*> GW2_SCT::FontType::_allocatedAtlases;
 std::mutex GW2_SCT::FontType::_allocatedAtlassesMutex;
+
+std::vector<GW2_SCT::FontType::PendingAtlasUpdate> GW2_SCT::FontType::pendingAtlasUpdates;
+std::mutex GW2_SCT::FontType::pendingAtlasUpdatesMutex;
 
 GW2_SCT::FontType::FontType(unsigned char* data, size_t size) {
     _cachedScales = {};
@@ -118,8 +141,14 @@ GW2_SCT::FontType::FontType(unsigned char* data, size_t size) {
 void GW2_SCT::FontType::ensureAtlasCreation() {
     size_t atlasId = 0;
     std::lock_guard lock(_allocatedAtlassesMutex);
+
+    GW2_SCT::Texture::ProcessPendingCreations();
+
+
     while (atlasId < _allocatedAtlases.size()) {
-        _allocatedAtlases[atlasId]->texture->ensureCreation();
+        if (_allocatedAtlases[atlasId]->texture != nullptr) {
+            _allocatedAtlases[atlasId]->texture->ensureCreation();
+        }
         atlasId++;
     }
 }
@@ -130,6 +159,89 @@ void GW2_SCT::FontType::cleanup() {
         delete atlas;
     }
     _allocatedAtlases.empty();
+
+    std::lock_guard updateLock(pendingAtlasUpdatesMutex);
+    pendingAtlasUpdates.clear();
+}
+
+
+void GW2_SCT::FontType::ProcessPendingAtlasUpdates() {
+    std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+    std::lock_guard<std::mutex> atlasLock(_allocatedAtlassesMutex);
+
+    if (pendingAtlasUpdates.empty()) return;
+
+    #if _DEBUG
+        LOG("[", getTimestamp(), "] ATLAS: Processing ", pendingAtlasUpdates.size(), " pending atlas updates");
+    #endif
+
+    auto it = pendingAtlasUpdates.begin();
+    int processed = 0;
+    int failed = 0;
+    int skipped = 0;
+
+    while (it != pendingAtlasUpdates.end()) {
+        auto& update = *it;
+
+        if (update.glyph == nullptr) {
+
+            #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: Skipping update with null glyph for codepoint ", update.codePoint, " at scale ", update.scale);
+            #endif
+
+            it = pendingAtlasUpdates.erase(it);
+            skipped++;
+            continue;
+        }
+
+        // Check if atlas texture is ready
+        if (update.atlasId < _allocatedAtlases.size() &&
+            _allocatedAtlases[update.atlasId]->texture != nullptr &&
+            _allocatedAtlases[update.atlasId]->texture->isReady()) {
+
+            // Texture is ready, perform the update
+            MutableTexture::UpdateData area;
+            ImVec2 pos = update.atlasPosition;
+            ImVec2 size = ImVec2(update.glyph->getWidth(), update.glyph->getHeight());
+            if (_allocatedAtlases[update.atlasId]->texture->startUpdate(pos, size, &area)) {
+
+                unsigned char* currentPosition = nullptr;
+                for (size_t y = 0; y < update.glyph->getHeight(); y++) {
+                    currentPosition = area.data + y * area.rowPitch;
+                    for (int x = 0; x < update.glyph->getWidth(); x++) {
+                        currentPosition[0] = 0xff;
+                        currentPosition[1] = 0xff;
+                        currentPosition[2] = 0xff;
+                        currentPosition[3] = update.glyph->getBitmap()[y * update.glyph->getWidth() + x];
+                        currentPosition += 4;
+                    }
+                }
+                _allocatedAtlases[update.atlasId]->texture->endUpdate();
+                
+                #if _DEBUG
+                    LOG("[", getTimestamp(), "] ATLAS: *** SUCCESSFULLY UPDATED *** atlas for codepoint ", update.codePoint, " at scale ", update.scale);
+                #endif
+
+                it = pendingAtlasUpdates.erase(it);
+                processed++;
+            }
+            else {
+                LOG("[", getTimestamp(), "] ATLAS: *** FAILED TO START UPDATE *** for codepoint ", update.codePoint, " at scale ", update.scale);
+                it = pendingAtlasUpdates.erase(it);
+                failed++;
+            }
+        }
+        else {
+            // Texture not ready yet, keep in queue for next time
+            ++it;
+        }
+    }
+
+    #if _DEBUG
+        if (processed > 0 || failed > 0 || skipped > 0) {
+            LOG("[", getTimestamp(), "] ATLAS: Update complete - processed: ", processed, ", failed: ", failed, ", skipped: ", skipped, ", remaining: ", pendingAtlasUpdates.size());
+        }
+    #endif
 }
 
 short getCodepointLength(std::string text, size_t i) {
@@ -187,85 +299,112 @@ std::vector<int> getCodepointsWithoutDuplicates(std::string str) {
 void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
     float scale = getCachedScale(fontSize);
     std::vector<int> codepointsWithoutDuplicates = getCodepointsWithoutDuplicates(text);
+
+    #if _DEBUG
+        LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize called for scale ", scale, " (fontSize ", fontSize, ") with ", codepointsWithoutDuplicates.size(), " codepoints");
+    #endif
+
     std::lock_guard lock(_allocatedAtlassesMutex);
     if (_allocatedAtlases.size() == 0) {
         LOG("Creating atlas with id 0 in advance");
         GlyphAtlas* atlas = new GlyphAtlas();
         _allocatedAtlases.push_back(atlas);
     }
+
+    int newGlyphsQueued = 0;
+    int duplicatesSkipped = 0;
+
     for (const auto& codePoint : codepointsWithoutDuplicates) {
-        if (_glyphPositionsAtSizes[scale].find(codePoint) == _glyphPositionsAtSizes[scale].end()) {
-            Glyph* glyph = Glyph::GetGlyph(&_info, scale, codePoint, _ascent);
-            size_t atlasId = 0;
-            ImVec2 atlasPosition;
-            bool positionFound = false;
+        // Check if this glyph at this scale already exists
+        auto scaleIt = _glyphPositionsAtSizes.find(scale);
+        if (scaleIt != _glyphPositionsAtSizes.end()) {
+            auto codepointIt = scaleIt->second.find(codePoint);
+            if (codepointIt != scaleIt->second.end()) {
+                // Already exists for this scale, skip
+                duplicatesSkipped++;
 
-            while (!positionFound && atlasId < _allocatedAtlases.size()) {
-                for (auto &lineDefinition : _allocatedAtlases[atlasId]->linesWithSpaces) {
-                    if (fontSize <= lineDefinition.lineHeight && lineDefinition.nextGlyphPosition.x + glyph->getWidth() < FONT_TEXTURE_SIZE) {
-                        positionFound = true;
-                        atlasPosition = lineDefinition.nextGlyphPosition;
-                        lineDefinition.nextGlyphPosition.x += glyph->getWidth();
-                        break;
-                    }
-                }
-                if (!positionFound) {
-                    float nextYAfterLastLine;
-                    if (_allocatedAtlases[atlasId]->linesWithSpaces.size() == 0) {
-                        nextYAfterLastLine = 0;
-                    } else {
-                        auto& lastLine = _allocatedAtlases[atlasId]->linesWithSpaces.back();
-                        nextYAfterLastLine = lastLine.nextGlyphPosition.y + lastLine.lineHeight;
-                    }
-                    if (nextYAfterLastLine + fontSize < FONT_TEXTURE_SIZE) {
-                        positionFound = true;
-                        _allocatedAtlases[atlasId]->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), nextYAfterLastLine) });
-                        atlasPosition = ImVec2(0, nextYAfterLastLine);
-                    } else {
-                        atlasId++;
-                    }
+                #if _DEBUG
+                    LOG("[", getTimestamp(), "] ATLAS: Skipping already baked glyph - codepoint ", codePoint, " at scale ", scale);
+                #endif           
+                continue;
+            }
+        }
+
+        Glyph* glyph = Glyph::GetGlyph(&_info, scale, codePoint, _ascent);
+        if (glyph == nullptr) {
+            
+            #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: Failed to get glyph for codepoint ", codePoint, " at scale ", scale);
+            #endif
+            
+            continue;
+        }
+
+        size_t atlasId = 0;
+        ImVec2 atlasPosition;
+        bool positionFound = false;
+
+        while (!positionFound && atlasId < _allocatedAtlases.size()) {
+            for (auto& lineDefinition : _allocatedAtlases[atlasId]->linesWithSpaces) {
+                if (fontSize <= lineDefinition.lineHeight && lineDefinition.nextGlyphPosition.x + glyph->getWidth() < FONT_TEXTURE_SIZE) {
+                    positionFound = true;
+                    atlasPosition = lineDefinition.nextGlyphPosition;
+                    lineDefinition.nextGlyphPosition.x += glyph->getWidth();
+                    break;
                 }
             }
-            if (atlasId == _allocatedAtlases.size()) {
-                GlyphAtlas* atlas = new GlyphAtlas();
-                atlas->linesWithSpaces.push_back({fontSize, ImVec2(glyph->getWidth(), 0)});
-                _allocatedAtlases.push_back(atlas);
-            } else if (_allocatedAtlases[atlasId]->linesWithSpaces.size() == 0) {
-                LOG("Creating atlas with id ", _allocatedAtlases.size()," in advance");
-                GlyphAtlas* atlas = new GlyphAtlas();
-                _allocatedAtlases.push_back(atlas);
-            }
-
-        
-
-            _glyphPositionsAtSizes[scale][codePoint] = GlyphPositionDefinition(atlasId, atlasPosition.x, atlasPosition.y, glyph);
-            if (codePoint != 32 && _allocatedAtlases[atlasId]->texture != nullptr) {
-                MutableTexture::UpdateData area;
-                if (!_allocatedAtlases[atlasId]->texture->startUpdate(
-                    _glyphPositionsAtSizes[scale][codePoint].getPos(),
-                    _glyphPositionsAtSizes[scale][codePoint].getSize(),
-                    &area)
-                ) {
-                    LOG("Could not begin updating font atlas.");
-                    _glyphPositionsAtSizes[scale].erase(codePoint);
+            if (!positionFound) {
+                float nextYAfterLastLine;
+                if (_allocatedAtlases[atlasId]->linesWithSpaces.size() == 0) {
+                    nextYAfterLastLine = 0;
                 }
                 else {
-                    unsigned char* currentPosition = nullptr;
-                    for (size_t y = 0; y < glyph->getHeight(); y++) {
-                        currentPosition = area.data + y * area.rowPitch;
-                        for (int x = 0; x < glyph->getWidth(); x++) {
-                            currentPosition[0] = 0xff;
-                            currentPosition[1] = 0xff;
-                            currentPosition[2] = 0xff;
-                            currentPosition[3] = glyph->getBitmap()[y * glyph->getWidth() + x];
-                            currentPosition += 4;
-                        }
-                    }
-                    _allocatedAtlases[atlasId]->texture->endUpdate();
+                    auto& lastLine = _allocatedAtlases[atlasId]->linesWithSpaces.back();
+                    nextYAfterLastLine = lastLine.nextGlyphPosition.y + lastLine.lineHeight;
+                }
+                if (nextYAfterLastLine + fontSize < FONT_TEXTURE_SIZE) {
+                    positionFound = true;
+                    _allocatedAtlases[atlasId]->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), nextYAfterLastLine) });
+                    atlasPosition = ImVec2(0, nextYAfterLastLine);
+                }
+                else {
+                    atlasId++;
                 }
             }
         }
+        if (atlasId == _allocatedAtlases.size()) {
+            GlyphAtlas* atlas = new GlyphAtlas();
+            atlas->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), 0) });
+            _allocatedAtlases.push_back(atlas);
+            atlasPosition = ImVec2(0, 0);
+            
+            #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: Created new atlas with id ", atlasId);
+            #endif
+        }
+
+        // Set position BEFORE queuing update to prevent duplicates
+        _glyphPositionsAtSizes[scale][codePoint] = GlyphPositionDefinition(atlasId, atlasPosition.x, atlasPosition.y, glyph);
+
+        if (codePoint != 32) { // Skip space character
+            // Queue the atlas update for safe processing later
+            std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+            pendingAtlasUpdates.push_back({
+                scale, codePoint, atlasId, atlasPosition, glyph
+                });
+            newGlyphsQueued++;
+
+            #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: *** QUEUED UPDATE *** for codepoint ", codePoint, " at scale ", scale, " (queue size: ", pendingAtlasUpdates.size(), ")");
+            #endif
+        }
     }
+
+    #if _DEBUG
+        if (newGlyphsQueued > 0 || duplicatesSkipped > 0) {
+            LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize complete - queued: ", newGlyphsQueued, ", skipped duplicates: ", duplicatesSkipped);
+        }
+    #endif
 }
 
 void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos, ImU32 color) {
@@ -294,7 +433,8 @@ void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos,
                 currentPos.x += def->glyph->getAdvanceAndKerning(i + 1 >= definitions.size() ? 0 : definitions[i + 1]->glyph->getCodepoint());
             }
         }
-    } else {
+    }
+    else {
         float realScaleFraction = getRealScale(fontSize) / scale;
         for (size_t i = 0; i < definitions.size(); i++) {
             GlyphPositionDefinition* def = definitions[i];
@@ -331,7 +471,8 @@ float GW2_SCT::FontType::getCachedScale(float fontSize) {
     auto it = _cachedScales.find(fontSize);
     if (it != _cachedScales.end()) {
         return it->second;
-    } else {
+    }
+    else {
         for (auto& scale : _cachedScales) {
             if (isCachedScaleExactForSize(scale.first) && scale.first * 0.75 <= fontSize && scale.first * 1.05 >= fontSize) {
                 _cachedScales[fontSize] = scale.second;
@@ -351,7 +492,8 @@ bool GW2_SCT::FontType::isCachedScaleExactForSize(float fontSize) {
     auto it = _isCachedScaleExact.find(fontSize);
     if (it != _isCachedScaleExact.end()) {
         return it->second;
-    } else {
+    }
+    else {
         return _isCachedScaleExact[fontSize] = false;
     }
 }
@@ -360,12 +502,12 @@ float GW2_SCT::FontType::getRealScale(float fontSize) {
     auto it = _cachedRealScales.find(fontSize);
     if (it != _cachedRealScales.end()) {
         return it->second;
-    } else {
+    }
+    else {
         _isCachedScaleExact[fontSize] = false;
         return _cachedRealScales[fontSize] = stbtt_ScaleForPixelHeight(&_info, fontSize);
     }
 }
-
 
 D3D11_TEXTURE2D_DESC desc = {
     FONT_TEXTURE_SIZE,
@@ -426,33 +568,36 @@ ImVec2 GW2_SCT::FontType::GlyphPositionDefinition::offsetFrom(ImVec2 origin, flo
 }
 
 void GW2_SCT::FontManager::init() {
-	std::vector<std::string> fontFiles = std::vector<std::string>();
-	std::string addonPath = getSCTPath();
+    std::vector<std::string> fontFiles = std::vector<std::string>();
+    std::string addonPath = getSCTPath();
 
-	std::string fontsDirectory = addonPath + "fonts\\";
-	CreateDirectory(fontsDirectory.c_str(), NULL);
+    std::string fontsDirectory = addonPath + "fonts\\";
+    CreateDirectory(fontsDirectory.c_str(), NULL);
 
     LOG("loading default font");
     defaultFont = FontManager::getDefaultFont();
-	fontMap = std::map<int, std::pair<std::string, FontType*>>();
-	fontMap.insert(std::pair<int, std::pair<std::string, FontType*>>(0, std::pair<std::string, FontType*>("Default", defaultFont)));
-	if (getFilesInDirectory(fontsDirectory, fontFiles)) {
-		int numFonts = 1;
-		for (auto it = fontFiles.begin(); it != fontFiles.end(); ++it) {
-			std::string fontFilePath = fontsDirectory + *it;
-			LOG("loading: ", fontFilePath);
-			FontType* fontType = nullptr;
-			try {
-				fontType = FontManager::loadFontTypeFromFile(fontFilePath);
-			} catch (std::exception& e) {
-				LOG("Error loading font: ", e.what())
-			}
-			if (fontType != nullptr) {
-				fontMap.insert(std::pair<int, std::pair<std::string, FontType*>>(numFonts, std::pair<std::string, FontType*>(std::string(*it), fontType)));
-			}
-			numFonts++;
-		}
-	}
+    fontMap = std::map<int, std::pair<std::string, FontType*>>();
+    fontMap.insert(std::pair<int, std::pair<std::string, FontType*>>(0, std::pair<std::string, FontType*>("Default", defaultFont)));
+    if (getFilesInDirectory(fontsDirectory, fontFiles)) {
+        int numFonts = 1;
+        for (auto it = fontFiles.begin(); it != fontFiles.end(); ++it) {
+            std::string fontFilePath = fontsDirectory + *it;
+            
+            LOG("loading: ", fontFilePath);
+
+            FontType* fontType = nullptr;
+            try {
+                fontType = FontManager::loadFontTypeFromFile(fontFilePath);
+            }
+            catch (std::exception& e) {
+                LOG("Error loading font: ", e.what())
+            }
+            if (fontType != nullptr) {
+                fontMap.insert(std::pair<int, std::pair<std::string, FontType*>>(numFonts, std::pair<std::string, FontType*>(std::string(*it), fontType)));
+            }
+            numFonts++;
+        }
+    }
 }
 
 void GW2_SCT::FontManager::cleanup() {
