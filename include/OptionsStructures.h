@@ -46,7 +46,6 @@ namespace GW2_SCT {
 
 	class options_struct {
 	public:
-		std::string revision = "1.0";
 		std::string globalProfile = "default";
 		shared_ptr_map_with_creation<std::string, profile_options_struct> profiles;
 		std::map<std::string, std::string> characterProfileMap;

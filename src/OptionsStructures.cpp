@@ -14,7 +14,8 @@ namespace nlohmann {
 		static void from_json(const json& j, std::shared_ptr<T>& opt) {
 			if (j.is_null()) {
 				opt = nullptr;
-			} else {
+			}
+			else {
 				opt = std::make_shared<T>(j.get<T>());
 			}
 		}
@@ -59,7 +60,6 @@ inline GW2_SCT::SkillIconDisplayType GW2_SCT::intSkillIconDisplayType(int i) {
 
 void GW2_SCT::to_json(nlohmann::json& j, const options_struct& p) {
 	j = nlohmann::json{
-		{"revision", p.revision},
 		{"globalProfile", p.globalProfile},
 		{"profiles", p.profiles},
 		{"characterProfileMap", p.characterProfileMap}
@@ -67,7 +67,6 @@ void GW2_SCT::to_json(nlohmann::json& j, const options_struct& p) {
 }
 
 void GW2_SCT::from_json(const nlohmann::json& j, options_struct& p) {
-	j.at("revision").get_to(p.revision);
 	j.at("globalProfile").get_to(p.globalProfile);
 	j.at("profiles").get_to(p.profiles);
 	j.at("characterProfileMap").get_to(p.characterProfileMap);

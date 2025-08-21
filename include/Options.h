@@ -18,6 +18,8 @@ namespace GW2_SCT {
 		static void open();
 		static void save();
 		static void load();
+		static void requestSave();
+		static void processPendingSave();
 		static void loadProfile(std::string characterName);
 		static std::string getFontSelectionString(bool withMaster = true) { return withMaster ? fontSelectionStringWithMaster : fontSelectionString; };
 		static std::string getFontSizeTypeSelectionString() { return fontSizeTypeSelectionString; };
@@ -37,10 +39,13 @@ namespace GW2_SCT {
 		static std::string fontSizeTypeSelectionString;
 		static std::string fontSelectionStringWithMaster;
 		static std::string skillFilterTypeSelectionString;
-		static std::string backupFileName;
 
 		static std::string currentProfileName;
 		static std::string currentCharacterName;
+
+		static std::chrono::steady_clock::time_point lastSaveRequest;
+		static bool saveRequested;
+		static const std::chrono::milliseconds SAVE_DELAY; // 500ms delay
 	};
 
 	struct receiver_information {

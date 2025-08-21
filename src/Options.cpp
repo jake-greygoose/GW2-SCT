@@ -22,12 +22,15 @@ std::string GW2_SCT::Options::fontSelectionString = "";
 std::string GW2_SCT::Options::fontSelectionStringWithMaster = "";
 std::string GW2_SCT::Options::fontSizeTypeSelectionString = "";
 std::string GW2_SCT::Options::skillFilterTypeSelectionString = "";
-std::string GW2_SCT::Options::backupFileName = "";
 
 const std::string defaultProfileName = "default";
 
 std::string GW2_SCT::Options::currentProfileName = defaultProfileName;
 std::string GW2_SCT::Options::currentCharacterName = "";
+
+std::chrono::steady_clock::time_point GW2_SCT::Options::lastSaveRequest = std::chrono::steady_clock::now();
+bool GW2_SCT::Options::saveRequested = false;
+const std::chrono::milliseconds GW2_SCT::Options::SAVE_DELAY(500);
 
 const std::map<GW2_SCT::MessageCategory, std::string> messageCategorySections = {
 	{ GW2_SCT::MessageCategory::PLAYER_OUT, "Messages_Player_Out" },
@@ -190,23 +193,8 @@ bool GW2_SCT::Options::getIsSkillFiltered(uint32_t skillId, const char* skillNam
 }
 
 void GW2_SCT::Options::paint() {
-	if (options.revision.compare(SCT_VERSION_STRING) != 0) {
-		ImGui::OpenPopup(langStringG(LanguageKey::Old_Save_Popup_Title));
-	}
-	if (ImGui::BeginPopupModal(langStringG(LanguageKey::Old_Save_Popup_Title))) {
-		std::string s(langStringG(LanguageKey::Old_Save_Popup_Content));
-		if (backupFileName != "") {
-			s += std::string(langStringG(LanguageKey::Old_Save_Popup_Backup_Made)) + "\n" + backupFileName + "\n";
-		}
-		s += "\n";
-		ImGui::Text(s.c_str());
-		ImGui::Separator();
-		if (ImGui::Button(langStringG(LanguageKey::Old_Save_Popup_Confirmation), ImVec2(120, 0))) {
-			options.revision = SCT_VERSION_STRING;
-			ImGui::CloseCurrentPopup();
-		}
-		ImGui::EndPopup();
-	}
+
+	processPendingSave();
 
 	if (windowIsOpen) {
 		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.60f, 0.60f, 0.60f, 0.30f));
@@ -228,7 +216,8 @@ void GW2_SCT::Options::paint() {
 					}
 				}
 				ImGui::EndTabItem();
-			} else {
+			}
+			else {
 				for (auto scrollAreaOptions : profile->scrollAreaOptions) {
 					if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
 				}
@@ -273,6 +262,22 @@ void GW2_SCT::Options::save() {
 	out.close();
 }
 
+void GW2_SCT::Options::requestSave() {
+	lastSaveRequest = std::chrono::steady_clock::now();
+	saveRequested = true;
+}
+
+void GW2_SCT::Options::processPendingSave() {
+	if (saveRequested) {
+		auto now = std::chrono::steady_clock::now();
+		if (now - lastSaveRequest >= SAVE_DELAY) {
+			save();
+			saveRequested = false;
+			LOG("Auto-saved configuration");
+		}
+	}
+}
+
 void GW2_SCT::Options::load() {
 	fontSelectionString = "";
 	for (auto it = fontMap.begin(); it != fontMap.end(); ++it) {
@@ -282,122 +287,11 @@ void GW2_SCT::Options::load() {
 	fontSelectionStringWithMaster = std::string("Master Font" + fontSelectionString);
 	fontSelectionString.erase(fontSelectionString.begin());
 
-	fontSizeTypeSelectionString = std::string(langStringG(LanguageKey::Default_Font_Size)) + '\0' + std::string(langStringG(LanguageKey::Default_Crit_Font_Size)) + '\0' + std::string(langStringG(LanguageKey::Custom_Font_Size))  + '\0';
+	fontSizeTypeSelectionString = std::string(langStringG(LanguageKey::Default_Font_Size)) + '\0' + std::string(langStringG(LanguageKey::Default_Crit_Font_Size)) + '\0' + std::string(langStringG(LanguageKey::Custom_Font_Size)) + '\0';
 	skillFilterTypeSelectionString = std::string(langStringG(LanguageKey::Skill_Filter_Type_ID)) + '\0' + std::string(langStringG(LanguageKey::Skill_Filter_Type_Name)) + '\0';
 
-	std::string iniFilename = getSCTPath() + "sct.ini";
 	std::string jsonFilename = getSCTPath() + "sct.json";
-	if (file_exist(iniFilename)) {
-		LOG("Loading sct.ini");
-		CSimpleIniA loadedIni(true, false, false);
-		SI_Error rc = loadedIni.LoadFile(iniFilename.c_str());
-		if (rc < 0) {
-			setDefault();
-			return;
-		}
-		else {
-			options.revision = loadedIni.GetValue("General", "Revision", "1.0");
-			profile = options.profiles[defaultProfileName];
-
-			if (options.revision.compare(SCT_VERSION_STRING) != 0) {
-				backupFileName = getSCTPath() + "sct_" + options.revision + ".ini";
-				if (!MoveFile(iniFilename.c_str(), backupFileName.c_str())) {
-					backupFileName = "";
-				}
-			}
-
-			if (std::regex_match(options.revision, std::regex("1\\.[0-2][a-z]?"))) {
-				LOG("Updating config for versions before 1.3.");
-				for (auto categoryIterator = receiverInformationPerCategoryAndType.begin(); categoryIterator != receiverInformationPerCategoryAndType.end(); categoryIterator++) {
-					const char* section = messageCategorySections.at(categoryIterator->first).c_str();
-					for (auto typeIterator = categoryIterator->second.begin(); typeIterator != categoryIterator->second.end(); typeIterator++) {
-						float font_size = std::stof(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Font_Size").c_str(), std::to_string(typeIterator->second.defaultReceiver.fontSize).c_str()));
-						if (typeIterator->first == MessageType::CRIT) {
-							if (floatEqual(font_size, profile->defaultCritFontSize)) {
-								loadedIni.SetValue(section, (typeIterator->second.iniPrefix + "_Font_Size").c_str(), "-2");
-							}
-						} else {
-							if (floatEqual(font_size, profile->defaultFontSize)) {
-								loadedIni.SetValue(section, (typeIterator->second.iniPrefix + "_Font_Size").c_str(), "-1");
-							}
-						}
-					}
-				}
-				options.revision = "1.3";
-			}
-		}
-
-		profile->sctEnabled = stob(loadedIni.GetValue("General", "SCT_enabled", btos(profile->sctEnabled).c_str()));
-		profile->scrollSpeed = std::stof(loadedIni.GetValue("General", "Scrolling_Speed", std::to_string(profile->scrollSpeed).c_str()));
-		profile->dropShadow = stob(loadedIni.GetValue("General", "Drop_Shadow", btos(profile->dropShadow).c_str()));
-		profile->messagesInStack = std::stoi(loadedIni.GetValue("General", "Maximal_Messages_in_Stack", std::to_string(profile->messagesInStack).c_str()));
-		profile->combineAllMessages = stob(loadedIni.GetValue("General", "Combine_all_Messages", btos(profile->combineAllMessages).c_str()));
-		profile->masterFont = stofo(loadedIni.GetValue("General", "Master_Font", fotos(profile->masterFont, false).c_str()), false);
-		profile->defaultFontSize = std::stof(loadedIni.GetValue("General", "Default_Font_Size", std::to_string(profile->defaultFontSize).c_str()));
-		profile->defaultCritFontSize = std::stof(loadedIni.GetValue("General", "Default_Crit_Font_Size", std::to_string(profile->defaultCritFontSize).c_str()));
-		defaultFont = getFontType(profile->masterFont, false);
-		profile->selfMessageOnlyIncoming = stob(loadedIni.GetValue("General", "Self_Message_Only_Incoming", btos(profile->selfMessageOnlyIncoming).c_str()));
-		profile->outgoingOnlyToTarget = stob(loadedIni.GetValue("General", "Outgoing_Only_To_Target", btos(profile->outgoingOnlyToTarget).c_str()));
-		int numScrollAreas = std::stoi(loadedIni.GetValue("General", "Num_Scroll_Areas", "0"));
-
-		for (int i = 1; i <= numScrollAreas; i++) {
-			std::string section = "Scroll_Area_" + std::to_string(i);
-			auto messageManagerOptions = std::make_shared<scroll_area_options_struct>();
-			messageManagerOptions->name = std::string(loadedIni.GetValue(section.c_str(), "Name", "defaultName"));
-			messageManagerOptions->offsetX = std::stof(loadedIni.GetValue(section.c_str(), "Horrizontal_Offset", "0"));
-			messageManagerOptions->offsetY = std::stof(loadedIni.GetValue(section.c_str(), "Vertical_Offset", "0"));
-			messageManagerOptions->width = std::stof(loadedIni.GetValue(section.c_str(), "Width", "0"));
-			messageManagerOptions->height = std::stof(loadedIni.GetValue(section.c_str(), "Height", "0"));
-			messageManagerOptions->textAlign = (TextAlign)std::stoi(loadedIni.GetValue(section.c_str(), "Text_Align", "0"));
-			messageManagerOptions->textCurve = (TextCurve)std::stoi(loadedIni.GetValue(section.c_str(), "Text_Flow", "0"));
-			messageManagerOptions->receivers = {};
-			profile->scrollAreaOptions.push_back(messageManagerOptions);
-		}
-
-		for (auto categoryIterator = receiverInformationPerCategoryAndType.begin(); categoryIterator != receiverInformationPerCategoryAndType.end(); categoryIterator++) {
-			const char* section = messageCategorySections.at(categoryIterator->first).c_str();
-			for (auto typeIterator = categoryIterator->second.begin(); typeIterator != categoryIterator->second.end(); typeIterator++) {
-				int outputArea = std::stoi(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Output_Manager").c_str(), std::to_string(-1).c_str()));
-				if (outputArea > 0 && outputArea <= profile->scrollAreaOptions.size()) {
-					message_receiver_options_struct newReceiver{
-						typeIterator->second.defaultReceiver.name,
-						categoryIterator->first,
-						typeIterator->first,
-						stob(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Enabled").c_str(), btos(true).c_str())),
-						std::string(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Output_Template").c_str(), "")),
-						std::string(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Color").c_str(), "#FFFFFF")),
-						stofo(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Font").c_str(), fotos(0).c_str())),
-						std::stof(loadedIni.GetValue(section, (typeIterator->second.iniPrefix + "_Font_Size").c_str(), std::to_string(22.f).c_str()))
-					};
-					profile->scrollAreaOptions.at(outputArea - 1)->receivers.push_back(std::make_shared<message_receiver_options_struct>(newReceiver));
-				}
-			}
-		}
-
-		profile->professionColorGuardian = loadedIni.GetValue("Profession_Colors", "Profession_Color_Guardian", profile->professionColorGuardian.c_str());
-		profile->professionColorWarrior = loadedIni.GetValue("Profession_Colors", "Profession_Color_Warrior", profile->professionColorWarrior.c_str());
-		profile->professionColorEngineer = loadedIni.GetValue("Profession_Colors", "Profession_Color_Engineer", profile->professionColorEngineer.c_str());
-		profile->professionColorRanger = loadedIni.GetValue("Profession_Colors", "Profession_Color_Ranger", profile->professionColorRanger.c_str());
-		profile->professionColorThief = loadedIni.GetValue("Profession_Colors", "Profession_Color_Thief", profile->professionColorThief.c_str());
-		profile->professionColorElementalist = loadedIni.GetValue("Profession_Colors", "Profession_Color_Elementalist", profile->professionColorElementalist.c_str());
-		profile->professionColorMesmer = loadedIni.GetValue("Profession_Colors", "Profession_Color_Mesmer", profile->professionColorMesmer.c_str());
-		profile->professionColorNecromancer = loadedIni.GetValue("Profession_Colors", "Profession_Color_Necromancer", profile->professionColorNecromancer.c_str());
-		profile->professionColorRevenant = loadedIni.GetValue("Profession_Colors", "Profession_Color_Revenant", profile->professionColorRevenant.c_str());
-		profile->professionColorDefault = loadedIni.GetValue("Profession_Colors", "Profession_Color_Default", profile->professionColorDefault.c_str());
-
-		int numFilteredIDs = std::stoi(loadedIni.GetValue("Filters", "Num_Filtered_IDs", "0"));
-		for (int i = 1; i <= numFilteredIDs; i++) {
-			std::string key = "Filter_" + std::to_string(i) + "_";
-			filter_options_struct filter;
-			filter.type = intToFilterType(stoi(std::string(loadedIni.GetValue("Filters", (key + "type").c_str(), "0"))));
-			filter.skillId = stoi(std::string(loadedIni.GetValue("Filters", (key + "id").c_str(), "0")));
-			filter.skillName = std::string(loadedIni.GetValue("Filters", (key + "name").c_str(), ""));
-			profile->skillFilters.push_back(filter);
-		}
-
-		profile->skillIconsEnabled = stob(loadedIni.GetValue("Skill_Icons", "Skill_Icons_Enabled", btos(profile->skillIconsEnabled).c_str()));
-		profile->preloadAllSkillIcons = stob(loadedIni.GetValue("Skill_Icons", "Skill_Icons_Preload", btos(profile->preloadAllSkillIcons).c_str()));
-	} else if (file_exist(jsonFilename)) {
+	if (file_exist(jsonFilename)) {
 		LOG("Loading sct.json");
 		std::string line, text;
 		std::ifstream in(jsonFilename);
@@ -407,27 +301,6 @@ void GW2_SCT::Options::load() {
 		in.close();
 		try {
 			nlohmann::json j = nlohmann::json::parse(text);
-			std::string rev = j["revision"];
-
-			if (rev.compare(SCT_VERSION_STRING) != 0) {
-				backupFileName = getSCTPath() + "sct_" + rev + ".json";
-				if (!MoveFile(jsonFilename.c_str(), backupFileName.c_str())) {
-					backupFileName = "";
-				}
-			}
-
-			if (rev == "2.0b") {
-				j["skillIconsDisplayType"] = SkillIconDisplayType::NORMAL;
-				j = {
-					{ "revision", rev },
-					{ "globalProfile", defaultProfileName },
-					{ "profiles", {
-						{ defaultProfileName, j }
-					} },
-					{ "characterProfileMap", std::map<std::string, std::string>() },
-				};
-				rev = "2.0c";
-			}
 			options = j;
 			if (options.profiles.find(defaultProfileName) == options.profiles.end()) {
 				options.profiles[defaultProfileName];
@@ -436,20 +309,14 @@ void GW2_SCT::Options::load() {
 			currentProfileName = options.globalProfile;
 			profile = options.profiles[currentProfileName];
 			defaultFont = getFontType(profile->masterFont, false);
-		} catch (std::exception e) {
-			LOG("Error loading options: ", e.what());
-			if (profile.operator std::shared_ptr<profile_options_struct>().get() == nullptr) {
-				if (options.profiles.find(currentProfileName) == options.profiles.end()) {
-					options.profiles[currentProfileName] = std::make_shared<profile_options_struct>();
-				}
-				profile = options.profiles[currentProfileName];
-			}
 		}
-	} else {
-		setDefault();
+		catch (std::exception e) {
+			LOG("Error loading options: ", e.what());
+			setDefault();
+		}
 	}
-	if (!backupFileName.empty()) {
-		save();
+	else {
+		setDefault();
 	}
 }
 
@@ -462,7 +329,8 @@ void GW2_SCT::Options::loadProfile(std::string characterName) {
 				currentProfileName = options.globalProfile;
 				profile = options.profiles[currentProfileName];
 			}
-		} else {
+		}
+		else {
 			if (currentProfileName != profileMappingIterator->second) {
 				currentProfileName = profileMappingIterator->second;
 				profile = options.profiles[currentProfileName];
@@ -472,7 +340,6 @@ void GW2_SCT::Options::loadProfile(std::string characterName) {
 }
 
 void GW2_SCT::Options::setDefault() {
-	options.revision = SCT_VERSION_STRING;
 	currentProfileName = defaultProfileName;
 	profile = options.profiles[defaultProfileName] = std::make_shared<profile_options_struct>();
 	auto incomingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
@@ -485,7 +352,7 @@ void GW2_SCT::Options::setDefault() {
 		TextCurve::LEFT,
 		ScrollAreaOutlineState::NONE,
 		{}
-	});
+		});
 	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_IN)) {
 		incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
 	}
@@ -503,7 +370,7 @@ void GW2_SCT::Options::setDefault() {
 		TextCurve::RIGHT,
 		ScrollAreaOutlineState::NONE,
 		{}
-	});
+		});
 	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_OUT)) {
 		outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
 	}
@@ -518,26 +385,54 @@ bool GW2_SCT::Options::isOptionsWindowOpen() {
 }
 
 void GW2_SCT::Options::paintGeneral() {
-	ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Enabled), &profile->sctEnabled);
-	ImGui::ClampingDragFloat(langString(LanguageCategory::Option_UI, LanguageKey::General_Scrolling_Speed), &profile->scrollSpeed, 1.f, 1.f, 2000.f);
+	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Enabled), &profile->sctEnabled)) {
+		requestSave();
+	}
+
+	if (ImGui::ClampingDragFloat(langString(LanguageCategory::Option_UI, LanguageKey::General_Scrolling_Speed), &profile->scrollSpeed, 1.f, 1.f, 2000.f)) {
+		requestSave();
+	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Scrolling_Speed_Toolip));
-	ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Drop_Shadow), &profile->dropShadow);
-	ImGui::ClampingDragInt(langString(LanguageCategory::Option_UI, LanguageKey::General_Max_Messages), &profile->messagesInStack, 1, 1, 8);
+
+	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Drop_Shadow), &profile->dropShadow)) {
+		requestSave();
+	}
+
+	if (ImGui::ClampingDragInt(langString(LanguageCategory::Option_UI, LanguageKey::General_Max_Messages), &profile->messagesInStack, 1, 1, 8)) {
+		requestSave();
+	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Max_Messages_Toolip));
-	ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Combine_Messages), &profile->combineAllMessages);
+
+	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Combine_Messages), &profile->combineAllMessages)) {
+		requestSave();
+	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Combine_Messages_Toolip));
+
 	if (ImGui::Combo(langStringG(LanguageKey::Font_Master), &profile->masterFont, getFontSelectionString(false).c_str())) {
 		defaultFont = getFontType(profile->masterFont, false);
+		requestSave();
 	}
-	ImGui::ClampingDragFloat(langStringG(LanguageKey::Default_Font_Size), &profile->defaultFontSize, 1.f, 1.f, 100.f);
-	ImGui::ClampingDragFloat(langStringG(LanguageKey::Default_Crit_Font_Size), &profile->defaultCritFontSize, 1.f, 1.f, 100.f);
-	ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Self_Only_As_Incoming), &profile->selfMessageOnlyIncoming);
+
+	if (ImGui::ClampingDragFloat(langStringG(LanguageKey::Default_Font_Size), &profile->defaultFontSize, 1.f, 1.f, 100.f)) {
+		requestSave();
+	}
+
+	if (ImGui::ClampingDragFloat(langStringG(LanguageKey::Default_Crit_Font_Size), &profile->defaultCritFontSize, 1.f, 1.f, 100.f)) {
+		requestSave();
+	}
+
+	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Self_Only_As_Incoming), &profile->selfMessageOnlyIncoming)) {
+		requestSave();
+	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Self_Only_As_Incoming_Toolip));
-	ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Out_Only_For_Target), &profile->outgoingOnlyToTarget);
+
+	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Out_Only_For_Target), &profile->outgoingOnlyToTarget)) {
+		requestSave();
+	}
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Out_Only_For_Target_Toolip));
 }
@@ -557,7 +452,7 @@ void GW2_SCT::Options::paintScrollAreas() {
 				selectedScrollArea == i,
 				ImGuiSelectableFlags_AllowItemOverlap,
 				ImVec2(0, square_size + style.FramePadding.y * 2))
-			)
+				)
 				selectedScrollArea = i;
 			ImGui::SameLine();
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
@@ -575,8 +470,11 @@ void GW2_SCT::Options::paintScrollAreas() {
 				ImGui::Separator();
 				if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
 					scrollAreaOptions = profile->scrollAreaOptions.erase(scrollAreaOptions);
+					selectedScrollArea = -1; // Reset selection since we deleted an item
+					requestSave();
 					ImGui::CloseCurrentPopup();
-				} else {
+				}
+				else {
 					scrollAreaOptions++;
 					i++;
 				}
@@ -585,7 +483,8 @@ void GW2_SCT::Options::paintScrollAreas() {
 					ImGui::CloseCurrentPopup();
 				}
 				ImGui::EndPopup();
-			} else {
+			}
+			else {
 				scrollAreaOptions++;
 				i++;
 			}
@@ -597,6 +496,7 @@ void GW2_SCT::Options::paintScrollAreas() {
 			scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New), 0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollAreaOutlineState::NONE, {} };
 			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newScrollArea));
 			selectedScrollArea = -1;
+			requestSave();
 		}
 		ImGui::PopStyleColor();
 		ImGui::EndChild();
@@ -613,20 +513,42 @@ void GW2_SCT::Options::paintScrollAreas() {
 			for (auto otherScrollAreaOptions : profile->scrollAreaOptions) {
 				if (scrollAreaOptions == otherScrollAreaOptions) {
 					if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::FULL) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::FULL;
-				} else {
+				}
+				else {
 					if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::LIGHT) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::LIGHT;
 				}
 			}
 
-			ImGui::InputText((std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Scroll_Areas_Name)) + "##scroll-area-name").c_str(), &scrollAreaOptions->name);
-			
+			if (ImGui::InputText((std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Scroll_Areas_Name)) + "##scroll-area-name").c_str(), &scrollAreaOptions->name)) {
+				requestSave();
+			}
+
 			ImGui::Separator();
-			ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Horizontal_Offset), &scrollAreaOptions->offsetX, 1.f, -windowWidth / 2.f, windowWidth / 2.f);
-			ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Vertical_Offset), &scrollAreaOptions->offsetY, 1.f, -windowHeight / 2.f, windowHeight / 2.f);
-			ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Width), &scrollAreaOptions->width, 1.f, 1.f, (float)windowWidth);
-			ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Height), &scrollAreaOptions->height, 1.f, 1.f, (float)windowHeight);
-			ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Align), (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3);
-			ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Flow), (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3);
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Horizontal_Offset), &scrollAreaOptions->offsetX, 1.f, -windowWidth / 2.f, windowWidth / 2.f)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Vertical_Offset), &scrollAreaOptions->offsetY, 1.f, -windowHeight / 2.f, windowHeight / 2.f)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Width), &scrollAreaOptions->width, 1.f, 1.f, (float)windowWidth)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Height), &scrollAreaOptions->height, 1.f, 1.f, (float)windowHeight)) {
+				requestSave();
+			}
+
+			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Align), (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
+				requestSave();
+			}
+
+			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Flow), (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
+				requestSave();
+			}
+
 			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
 			int receiverOptionsCounter = 0;
 			auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
@@ -634,7 +556,12 @@ void GW2_SCT::Options::paintScrollAreas() {
 				int receiverReturnFlags = ImGui::ReceiverCollapsible(receiverOptionsCounter, *receiverOptionsIterator);
 				if (receiverReturnFlags & ReceiverCollapsible_Remove) {
 					receiverOptionsIterator = scrollAreaOptions->receivers.erase(receiverOptionsIterator);
-				} else {
+					requestSave();
+				}
+				else {
+					if (receiverReturnFlags != 0) {
+						requestSave();
+					}
 					receiverOptionsIterator++;
 					receiverOptionsCounter++;
 				}
@@ -647,8 +574,10 @@ void GW2_SCT::Options::paintScrollAreas() {
 			if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
 				auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;
 				scrollAreaOptions->receivers.push_back(std::make_shared<message_receiver_options_struct>(defaultReceiver));
+				requestSave();
 			}
-		} else {
+		}
+		else {
 			for (auto scrollAreaOptions : profile->scrollAreaOptions) {
 				if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::FULL) scrollAreaOptions->outlineState = ScrollAreaOutlineState::FULL;
 			}
@@ -658,7 +587,8 @@ void GW2_SCT::Options::paintScrollAreas() {
 	}
 }
 
-bool drawColorSelector(const char * name, std::string &color) {
+
+bool drawColorSelector(const char* name, std::string& color) {
 	int num = std::stoi(color, 0, 16);
 	int red = num / 0x10000;
 	int green = (num / 0x100) % 0x100;
@@ -670,6 +600,7 @@ bool drawColorSelector(const char * name, std::string &color) {
 		stm << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(col[1] * 255.f);
 		stm << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << static_cast<int>(col[2] * 255.f);
 		color = stm.str();
+		GW2_SCT::Options::requestSave();
 		return true;
 	}
 	return false;
@@ -731,7 +662,7 @@ void GW2_SCT::Options::paintSkillIcons() {
 	if (ImGui::BeginCombo(
 		ImGui::BuildVisibleLabel(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Display_Type), "skill-icons-display-combo").c_str(),
 		skillIconsDisplayTypeNames.at(profile->skillIconsDisplayType).c_str())
-	) {
+		) {
 		int i = 0;
 		for (auto& skillIconDisplayTypeAndName : skillIconsDisplayTypeNames) {
 			if (ImGui::Selectable(ImGui::BuildLabel(skillIconDisplayTypeAndName.second, "skill-icons-display-selectable", i).c_str())) {
@@ -767,7 +698,8 @@ void GW2_SCT::Options::paintProfiles() {
 		if (ImGui::Checkbox((std::string(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Character_Specific_Profile_Enabled)) + currentCharacterName).c_str(), &doesCharacterMappingExist)) {
 			if (doesCharacterMappingExist) {
 				options.characterProfileMap[currentCharacterName] = currentProfileName;
-			} else {
+			}
+			else {
 				currentProfileName = options.globalProfile;
 				profile = options.profiles[currentProfileName];
 				options.characterProfileMap.erase(currentCharacterName);
@@ -805,7 +737,7 @@ void GW2_SCT::Options::paintProfiles() {
 			*d = true;
 		}
 		return 0;
-	}, &changedBG)) {
+		}, &changedBG)) {
 		if (!changedBG && nameCopy != currentProfileName) {
 			if (options.globalProfile == currentProfileName) {
 				options.globalProfile = nameCopy;
@@ -881,7 +813,7 @@ void GW2_SCT::Options::paintProfiles() {
 	}
 }
 
-std::map<char, std::string> GW2_SCT::mapParameterListToLanguage(const char * section, std::vector<char> list) {
+std::map<char, std::string> GW2_SCT::mapParameterListToLanguage(const char* section, std::vector<char> list) {
 	std::map<char, std::string> result;
 	for (auto p : list) {
 		result.insert({ p, std::string(langStringImguiSafe(GetLanguageCategoryValue(section), GetLanguageKeyValue((std::string("Parameter_Description_") + p).c_str()))) });
