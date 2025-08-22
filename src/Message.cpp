@@ -280,7 +280,7 @@ namespace GW2_SCT {
 	};
 }
 
-GW2_SCT::MessageData::MessageData(cbtevent * ev, ag * entity, ag * otherEntity, const char * skillname) {
+GW2_SCT::MessageData::MessageData(cbtevent* ev, ag* entity, ag* otherEntity, const char* skillname) {
 	skillName = (char*)malloc(strlen(skillname) + 1);
 	strcpy_s(skillName, strlen(skillname) + 1, skillname);
 	value = ev->value;
@@ -302,10 +302,10 @@ GW2_SCT::MessageData::MessageData(cbtevent * ev, ag * entity, ag * otherEntity, 
 			strcpy_s(otherEntityName, strlen(otherEntity->name) + 1, otherEntity->name);
 		}
 	}
-	hasToBeFiltered = Options::getIsSkillFiltered(ev->skillid, skillname);
+	hasToBeFiltered = false;
 }
 
-GW2_SCT::MessageData::MessageData(cbtevent1 * ev, ag * entity, ag * otherEntity, const char * skillname) {
+GW2_SCT::MessageData::MessageData(cbtevent1* ev, ag* entity, ag* otherEntity, const char* skillname) {
 	skillName = (char*)malloc(strlen(skillname) + 1);
 	strcpy_s(skillName, strlen(skillname) + 1, skillname);
 	value = ev->value;
@@ -328,7 +328,7 @@ GW2_SCT::MessageData::MessageData(cbtevent1 * ev, ag * entity, ag * otherEntity,
 			strcpy_s(otherEntityName, strlen(otherEntity->name) + 1, otherEntity->name);
 		}
 	}
-	hasToBeFiltered = Options::getIsSkillFiltered(ev->skillid, skillname);
+	hasToBeFiltered = false;
 }
 
 #ifdef _DEBUG
@@ -352,6 +352,7 @@ GW2_SCT::MessageData::MessageData(int32_t value, int32_t buffValue, uint32_t ove
 			strcpy_s(otherEntityName, strlen(otherEntity->name) + 1, otherEntity->name);
 		}
 	}
+	hasToBeFiltered = false;
 }
 #endif // _DEBUG
 
@@ -373,9 +374,10 @@ GW2_SCT::MessageData::MessageData(const MessageData& toCopy) {
 GW2_SCT::MessageHandler::MessageHandler(
 	std::vector<std::function<bool(std::vector<const MessageData*>&, std::vector<const MessageData*>&)>> tryToCombineWithFunctions,
 	std::map<char, std::function<std::string(std::vector<const MessageData*>&)>> parameterToStringFunctions
-) : tryToCombineWithFunctions(tryToCombineWithFunctions), parameterToStringFunctions(parameterToStringFunctions) {}
+) : tryToCombineWithFunctions(tryToCombineWithFunctions), parameterToStringFunctions(parameterToStringFunctions) {
+}
 
-GW2_SCT::EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent * ev, ag * src, ag * dst, char * skillname)
+GW2_SCT::EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent* ev, ag* src, ag* dst, char* skillname)
 	: category(category), type(type), timepoint(std::chrono::system_clock::now()) {
 	switch (category)
 	{
@@ -393,7 +395,7 @@ GW2_SCT::EventMessage::EventMessage(MessageCategory category, MessageType type, 
 	}
 }
 
-GW2_SCT::EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent1 * ev, ag * src, ag * dst, char * skillname)
+GW2_SCT::EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent1* ev, ag* src, ag* dst, char* skillname)
 	: category(category), type(type), timepoint(std::chrono::system_clock::now()) {
 	switch (category)
 	{
@@ -463,7 +465,8 @@ std::string GW2_SCT::EventMessage::getStringForOptions(std::shared_ptr<message_r
 		stm << "[/col]";
 
 		return stm.str();
-	} else {
+	}
+	else {
 		return "";
 	}
 }
@@ -484,12 +487,7 @@ GW2_SCT::MessageType GW2_SCT::EventMessage::getType() {
 }
 
 bool GW2_SCT::EventMessage::hasToBeFiltered() {
-	for (auto& m : messageDatas) {
-		if (!m->hasToBeFiltered) {
-			return false;
-		}
-	}
-	return true;
+	return false;
 }
 
 bool GW2_SCT::EventMessage::tryToCombineWith(std::shared_ptr<EventMessage> m) {

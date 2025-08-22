@@ -40,7 +40,7 @@ namespace ImGui {
 	void SameLineEnd(float offset_from_end_x);
 	int ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_receiver_options_struct> receiverOptions);
 	bool NewReceiverLine(GW2_SCT::MessageCategory* categoryOut, GW2_SCT::MessageType* typeOut);
-	int FilterOptionLine(uint32_t id, GW2_SCT::filter_options_struct* opt);
+	int FilterOptionLine(uint32_t id, GW2_SCT::SkillFilter* opt); // <-- FIX: Renamed filter_options_struct to SkillFilter
 	bool ClampingDragFloat(const char* label, float* v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* display_format = "%.3f", float power = 1.0f);
 	bool ClampingDragInt(const char* label, int* v, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* display_format = "%.0f");
 

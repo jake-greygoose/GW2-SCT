@@ -11,6 +11,7 @@
 #include "imgui_sct_widgets.h"
 #include "TemplateInterpreter.h"
 #include "Language.h"
+#include "SkillFilterStructures.h"
 
 const char* TextAlignTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Align_Left), langStringG(GW2_SCT::LanguageKey::Text_Align_Center), langStringG(GW2_SCT::LanguageKey::Text_Align_Right) };
 const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right) };
@@ -39,17 +40,28 @@ const std::map<GW2_SCT::MessageCategory, std::string> messageCategorySections = 
 	{ GW2_SCT::MessageCategory::PET_IN, "Messages_Pet_In" }
 };
 
+
+namespace GW2_SCT {
+	std::map<char, std::string> mapParameterListToLanguage(const char* section, std::vector<char> list) {
+		std::map<char, std::string> result;
+		for (auto p : list) {
+			result.insert({ p, std::string(langStringImguiSafe(GetLanguageCategoryValue(section), GetLanguageKeyValue((std::string("Parameter_Description_") + p).c_str()))) });
+		}
+		return result;
+	}
+}
+
 #define P99_PROTECT(...) __VA_ARGS__
 #define ReceiverInformation(Category, CategoryLanguage, Type, TypeLanguage, IniName, CategoryAndTypeLanguage, PossibileParameters, Enabled, Color, Font, FontSize) \
 		{ Type, { \
 			IniName, \
-			mapParameterListToLanguage(#CategoryAndTypeLanguage, PossibileParameters), \
-			message_receiver_options_struct{ \
-				std::string(langString(LanguageCategory::Option_UI, LanguageKey::CategoryLanguage)) + " - " + std::string(langString(LanguageCategory::Option_UI, LanguageKey::TypeLanguage)), \
+			GW2_SCT::mapParameterListToLanguage(#CategoryAndTypeLanguage, PossibileParameters), \
+			GW2_SCT::message_receiver_options_struct{ \
+				std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::CategoryLanguage)) + " - " + std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::TypeLanguage)), \
 				Category, \
 				Type, \
 				Enabled, \
-				std::string(langString(LanguageCategory::CategoryAndTypeLanguage, LanguageKey::Default_Value)), \
+				std::string(langString(GW2_SCT::LanguageCategory::CategoryAndTypeLanguage, GW2_SCT::LanguageKey::Default_Value)), \
 				std::string(Color), \
 				Font, \
 				FontSize \
@@ -176,22 +188,6 @@ void GW2_SCT::Options::open() {
 	windowIsOpen = true;
 }
 
-bool GW2_SCT::Options::getIsSkillFiltered(uint32_t skillId, const char* skillName) {
-	for (const auto& it : profile->skillFilters) {
-		if (it.type == FilterType::SKILL_ID) {
-			if (it.skillId == skillId) {
-				return true;
-			}
-		}
-		else if (it.type == FilterType::SKILL_NAME) {
-			if (std::strcmp(it.skillName.c_str(), skillName) == 0) {
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
 void GW2_SCT::Options::paint() {
 
 	processPendingSave();
@@ -305,7 +301,7 @@ void GW2_SCT::Options::load() {
 			if (options.profiles.find(defaultProfileName) == options.profiles.end()) {
 				options.profiles[defaultProfileName];
 			}
-			// TODO: check whether character name is allready set at this point
+
 			currentProfileName = options.globalProfile;
 			profile = options.profiles[currentProfileName];
 			defaultFont = getFontType(profile->masterFont, false);
@@ -470,7 +466,7 @@ void GW2_SCT::Options::paintScrollAreas() {
 				ImGui::Separator();
 				if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
 					scrollAreaOptions = profile->scrollAreaOptions.erase(scrollAreaOptions);
-					selectedScrollArea = -1; // Reset selection since we deleted an item
+					selectedScrollArea = -1;
 					requestSave();
 					ImGui::CloseCurrentPopup();
 				}
@@ -620,36 +616,229 @@ void GW2_SCT::Options::paintProfessionColors() {
 }
 
 void GW2_SCT::Options::paintSkillFilters() {
-	ImGui::Text(langString(LanguageCategory::Skill_Filter_Option_UI, LanguageKey::Filter_By));
-	uint32_t i = 0;
-	for (auto it = profile->skillFilters.begin(); it != profile->skillFilters.end(); ++it) {
-		int retFlags = ImGui::FilterOptionLine(i, &(*it));
-		if (retFlags != 0) {
-			if (retFlags & FilterOptionLine_Remove) {
-				if (it == profile->skillFilters.begin()) {
-					profile->skillFilters.erase(it);
-					break;
+	const float square_size = ImGui::GetFontSize();
+	ImGuiStyle style = ImGui::GetStyle();
+
+	static std::string selectedFilterSet = "";
+
+	// Left pane - Filter Set List
+	{
+		ImGui::BeginChild("filter_sets_list", ImVec2(ImGui::GetWindowWidth() * 0.3f, 0), true);
+		ImGui::Text("Filter Sets");
+		ImGui::Separator();
+
+		for (auto& [name, filterSet] : profile->filterManager.getAllFilterSets()) {
+			bool isSelected = (selectedFilterSet == name);
+			if (ImGui::Selectable(ImGui::BuildLabel(name.c_str(), "filter-set-selectable", name).c_str(), isSelected)) {
+				selectedFilterSet = name;
+			}
+
+			if (ImGui::IsItemHovered() && !filterSet->description.empty()) {
+				ImGui::BeginTooltip();
+				ImGui::Text("%s", filterSet->description.c_str());
+				ImGui::EndTooltip();
+			}
+		}
+
+		ImGui::Separator();
+
+		static char newFilterSetName[256] = "";
+		ImGui::InputText("##new_filter_set_name", newFilterSetName, sizeof(newFilterSetName));
+		ImGui::SameLine();
+		if (ImGui::Button("Add") && strlen(newFilterSetName) > 0) {
+			if (profile->filterManager.getFilterSet(newFilterSetName) == nullptr) {
+				profile->filterManager.createFilterSet(newFilterSetName);
+				selectedFilterSet = newFilterSetName;
+				memset(newFilterSetName, 0, sizeof(newFilterSetName));
+				requestSave();
+			}
+		}
+
+		ImGui::EndChild();
+	}
+
+	ImGui::SameLine();
+
+	// Right pane - Filter Set Details
+	{
+		ImGui::BeginChild("filter_set_details", ImVec2(0, 0), true);
+
+		if (!selectedFilterSet.empty()) {
+			auto filterSet = profile->filterManager.getFilterSet(selectedFilterSet);
+			if (filterSet) {
+				ImGui::Text("Filter Set: %s", filterSet->name.c_str());
+				ImGui::Separator();
+
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+				if (ImGui::Button("Delete Filter Set")) {
+					ImGui::OpenPopup("Delete Filter Set");
 				}
-				else {
-					auto last = it - 1;
-					profile->skillFilters.erase(it);
-					it = last;
+				ImGui::PopStyleColor();
+
+				if (ImGui::BeginPopupModal("Delete Filter Set")) {
+					ImGui::Text("Delete filter set '%s'?", filterSet->name.c_str());
+					if (ImGui::Button("Yes", ImVec2(120, 0))) {
+						for (auto& scrollArea : profile->scrollAreaOptions) {
+							for (auto& receiver : scrollArea->receivers) {
+								auto it = std::find(receiver->assignedFilterSets.begin(),
+									receiver->assignedFilterSets.end(),
+									filterSet->name);
+								if (it != receiver->assignedFilterSets.end()) {
+									receiver->assignedFilterSets.erase(it);
+								}
+							}
+						}
+						profile->filterManager.removeFilterSet(filterSet->name);
+						selectedFilterSet = "";
+						requestSave();
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("No", ImVec2(120, 0))) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+
+				if (ImGui::InputText("Description", &filterSet->description)) {
+					requestSave();
+				}
+
+				ImGui::Separator();
+
+				ImGui::Text("Default Action:");
+				ImGui::SameLine();
+				int defaultAction = static_cast<int>(filterSet->filterSet.defaultAction);
+				if (ImGui::RadioButton("Allow", &defaultAction, 0)) {
+					filterSet->filterSet.defaultAction = FilterAction::ALLOW;
+					requestSave();
+				}
+				ImGui::SameLine();
+				if (ImGui::RadioButton("Block", &defaultAction, 1)) {
+					filterSet->filterSet.defaultAction = FilterAction::BLOCK;
+					requestSave();
+				}
+
+				ImGui::Separator();
+				ImGui::Text("Filters:");
+
+				int filterIndex = 0;
+				auto it = filterSet->filterSet.filters.begin();
+				while (it != filterSet->filterSet.filters.end()) {
+					ImGui::PushID(filterIndex);
+
+					bool shouldDelete = false;
+
+					ImGui::BeginGroup();
+
+					int action = static_cast<int>(it->action);
+					ImGui::SetNextItemWidth(80);
+					if (ImGui::Combo("##action", &action, "Allow\0Block\0")) {
+						it->action = static_cast<FilterAction>(action);
+						requestSave();
+					}
+
+					ImGui::SameLine();
+
+					int type = static_cast<int>(it->type);
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::Combo("##type", &type, "Skill ID\0Skill Name\0ID Range\0")) {
+						it->type = static_cast<FilterType>(type);
+						requestSave();
+					}
+
+					ImGui::SameLine();
+
+					switch (it->type) {
+					case FilterType::SKILL_ID: {
+						ImGui::SetNextItemWidth(200);
+						if (ImGui::InputScalar("##value", ImGuiDataType_U32, &it->skillId)) {
+							requestSave();
+						}
+						break;
+					}
+					case FilterType::SKILL_NAME: {
+						ImGui::SetNextItemWidth(200);
+						if (ImGui::InputText("##value", &it->skillName)) {
+							requestSave();
+						}
+						break;
+					}
+					case FilterType::SKILL_ID_RANGE: {
+						ImGui::SetNextItemWidth(90);
+						if (ImGui::InputScalar("##start", ImGuiDataType_U32, &it->idRange.start)) {
+							requestSave();
+						}
+						ImGui::SameLine();
+						ImGui::Text("-");
+						ImGui::SameLine();
+						ImGui::SetNextItemWidth(90);
+						if (ImGui::InputScalar("##end", ImGuiDataType_U32, &it->idRange.end)) {
+							requestSave();
+						}
+						break;
+					}
+					}
+
+					ImGui::SameLine();
+
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+					if (ImGui::Button("X")) {
+						shouldDelete = true;
+					}
+					ImGui::PopStyleColor();
+
+					ImGui::EndGroup();
+
+					ImGui::PopID();
+
+					if (shouldDelete) {
+						it = filterSet->filterSet.filters.erase(it);
+						requestSave();
+					}
+					else {
+						++it;
+						++filterIndex;
+					}
+				}
+
+				if (ImGui::Button("+ Add Filter")) {
+					SkillFilter newFilter;
+					newFilter.type = FilterType::SKILL_ID;
+					newFilter.action = FilterAction::BLOCK;
+					newFilter.skillId = 0;
+					filterSet->filterSet.filters.push_back(newFilter);
+					requestSave();
+				}
+
+				ImGui::Separator();
+
+				ImGui::Text("Used by:");
+				int usageCount = 0;
+				for (auto& scrollArea : profile->scrollAreaOptions) {
+					for (auto& receiver : scrollArea->receivers) {
+						auto it = std::find(receiver->assignedFilterSets.begin(),
+							receiver->assignedFilterSets.end(),
+							filterSet->name);
+						if (it != receiver->assignedFilterSets.end()) {
+							ImGui::BulletText("%s - %s",
+								scrollArea->name.c_str(),
+								receiver->name.c_str());
+							usageCount++;
+						}
+					}
+				}
+				if (usageCount == 0) {
+					ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "  Not assigned to any receivers");
 				}
 			}
 		}
-		i++;
+		else {
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Select or create a filter set");
+		}
+
+		ImGui::EndChild();
 	}
-	ImGui::Text(" ");
-	const float square_size = ImGui::GetFontSize();
-	ImVec2 windowSize = ImGui::GetWindowSize();
-	bool scrollY = ImGui::GetScrollMaxY() > 0;
-	ImGuiStyle style = ImGui::GetStyle();
-	ImGui::SameLine(windowSize.x - (square_size + style.FramePadding.y * 2) - (scrollY ? style.ScrollbarSize : 0) - style.WindowPadding.x, style.ItemInnerSpacing.x);
-	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
-	if (ImGui::Button("+", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-		profile->skillFilters.push_back({ FilterType::SKILL_ID, 0, "" });
-	}
-	ImGui::PopStyleColor();
 }
 
 void GW2_SCT::Options::paintSkillIcons() {
@@ -811,12 +1000,4 @@ void GW2_SCT::Options::paintProfiles() {
 		}
 		ImGui::EndPopup();
 	}
-}
-
-std::map<char, std::string> GW2_SCT::mapParameterListToLanguage(const char* section, std::vector<char> list) {
-	std::map<char, std::string> result;
-	for (auto p : list) {
-		result.insert({ p, std::string(langStringImguiSafe(GetLanguageCategoryValue(section), GetLanguageKeyValue((std::string("Parameter_Description_") + p).c_str()))) });
-	}
-	return result;
 }

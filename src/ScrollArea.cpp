@@ -10,8 +10,17 @@ GW2_SCT::ScrollArea::ScrollArea(std::shared_ptr<scroll_area_options_struct> opti
 }
 
 void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
+	auto messageData = m->getCopyOfFirstData();
+	if (!messageData) return;
+
 	for (auto& receiver : options->receivers) {
 		if (receiver->enabled && m->getCategory() == receiver->category && m->getType() == receiver->type) {
+
+			std::string skillName = messageData->skillName ? std::string(messageData->skillName) : "";
+			if (receiver->isSkillFiltered(messageData->skillId, skillName, Options::get()->filterManager)) {
+				continue;
+			}
+
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
 			if (!messageQueue.empty()) {
 				if (Options::get()->combineAllMessages) {
@@ -22,7 +31,8 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 							return;
 						}
 					}
-				} else {
+				}
+				else {
 					auto backMessage = messageQueue.rbegin();
 					if (backMessage->options == receiver && backMessage->message->tryToCombineWith(m)) {
 						backMessage->update();
@@ -51,7 +61,8 @@ void GW2_SCT::ScrollArea::paintOutline() {
 		if (options->outlineState == ScrollAreaOutlineState::FULL) {
 			draw_list->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(.15f, .15f, .15f, .66f)));
 			draw_list->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, .66f)));
-		} else {
+		}
+		else {
 			draw_list->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(.15f, .15f, .15f, .33f)));
 			draw_list->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, .33f)));
 		}
@@ -67,7 +78,8 @@ void GW2_SCT::ScrollArea::paint() {
 		if (paintedMessages.empty()) {
 			paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
 			messageQueue.pop_front();
-		} else {
+		}
+		else {
 			float spaceRequiredForNextMessage = getTextSize(m.str.c_str(), m.font, m.fontSize).y;
 			float msForSpaceToClear = spaceRequiredForNextMessage / Options::get()->scrollSpeed * 1000;
 			__int64 msSinceLastPaintedMessage = duration_cast<milliseconds>(now - paintedMessages.back().second).count();
@@ -80,7 +92,8 @@ void GW2_SCT::ScrollArea::paint() {
 					paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
 					messageQueue.pop_front();
 				}
-			} else {
+			}
+			else {
 				paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
 				messageQueue.pop_front();
 			}
@@ -91,11 +104,12 @@ void GW2_SCT::ScrollArea::paint() {
 	paintOutline();
 
 	auto it = paintedMessages.begin();
-	while(it != paintedMessages.end()) {
+	while (it != paintedMessages.end()) {
 		__int64 t = duration_cast<milliseconds>(system_clock::now() - it->second).count();
 		if (paintMessage(it->first, t)) {
 			it++;
-		} else {
+		}
+		else {
 			it = paintedMessages.erase(it);
 		}
 	}
@@ -174,7 +188,6 @@ GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(std::shared_ptr<EventMes
 	colorObserverId = options->color.onAssign([this](const std::string& oldVal, const std::string& newVal) { this->update(); });
 	fontObserverId = options->font.onAssign([this](const FontId& oldVal, const FontId& newVal) { this->update(); });
 	fontSizeObserverId = options->fontSize.onAssign([this](const float& oldVal, const float& newVal) { this->update(); });
-	// TODO: add callbacks when changing other values like general font size
 }
 
 GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(const MessagePrerender& copy) {
@@ -184,7 +197,8 @@ GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(const MessagePrerender& 
 	type = copy.type;
 	if (copy.prerenderNeeded) {
 		update();
-	} else {
+	}
+	else {
 		str = copy.str;
 		font = copy.font;
 		fontSize = copy.fontSize;
@@ -227,7 +241,8 @@ void GW2_SCT::ScrollArea::MessagePrerender::update() {
 void GW2_SCT::ScrollArea::MessagePrerender::prerenderText() {
 	if (options != nullptr) {
 		interpretedText = TemplateInterpreter::interpret(font, fontSize, stoc(options->color), str);
-	} else {
+	}
+	else {
 		interpretedText = {};
 	}
 	if (interpretedText.size() > 0) {

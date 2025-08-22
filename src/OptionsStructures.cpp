@@ -1,193 +1,298 @@
 #include "OptionsStructures.h"
+#include <memory>
+#include <map>
+#include <utility>
 
+// ----------------------------------------------
+//  Enum <-> int helpers declared in the header
+// ----------------------------------------------
+namespace GW2_SCT {
+
+    int textAlignToInt(TextAlign type) {
+        return static_cast<int>(type);
+    }
+    TextAlign intToTextAlign(int i) {
+        switch (i) {
+        case 0: return TextAlign::LEFT;
+        case 1: return TextAlign::CENTER;
+        case 2: return TextAlign::RIGHT;
+        default: return TextAlign::LEFT;
+        }
+    }
+
+    int textCurveToInt(TextCurve type) {
+        return static_cast<int>(type);
+    }
+    TextCurve intToTextCurve(int i) {
+        switch (i) {
+        case 0: return TextCurve::LEFT;
+        case 1: return TextCurve::STRAIGHT;
+        case 2: return TextCurve::RIGHT;
+        case 3: return TextCurve::STATIC;
+        default: return TextCurve::LEFT;
+        }
+    }
+
+    int skillIconDisplayTypeToInt(SkillIconDisplayType type) {
+        return static_cast<int>(type);
+    }
+    SkillIconDisplayType intSkillIconDisplayType(int i) {
+        switch (i) {
+        case 0: return SkillIconDisplayType::NORMAL;
+        case 1: return SkillIconDisplayType::BLACK_CULLED;
+        default: return SkillIconDisplayType::NORMAL;
+        }
+    }
+
+} // namespace GW2_SCT
+
+// ----------------------------------------------
+//  JSON adapters
+// ----------------------------------------------
 namespace nlohmann {
-	template <typename T>
-	struct adl_serializer<std::shared_ptr<T>> {
-		static void to_json(json& j, const std::shared_ptr<T>& opt) {
-			if (opt.get()) {
-				j = *opt;
-			}
-			else {
-				j = nullptr;
-			}
-		}
-		static void from_json(const json& j, std::shared_ptr<T>& opt) {
-			if (j.is_null()) {
-				opt = nullptr;
-			}
-			else {
-				opt = std::make_shared<T>(j.get<T>());
-			}
-		}
-	};
-}
 
-inline int GW2_SCT::textAlignToInt(GW2_SCT::TextAlign type) {
-	return (int)type;
-}
+    // Already have ObservableValue<T> somewhere above — keep that.
 
-inline GW2_SCT::TextAlign GW2_SCT::intToTextAlign(int i) {
-	if (i < 0 || i > 1) return (GW2_SCT::TextAlign)0;
-	return (GW2_SCT::TextAlign)i;
-}
+    // ObservableVector<T> — works for T and std::shared_ptr<T> thanks to your header serializer
+    template <typename T>
+    struct adl_serializer<ObservableVector<T>> {
+        static void to_json(json& j, const ObservableVector<T>& v) {
+            j = json::array();
+            for (const auto& el : v) j.push_back(el);
+        }
+        static void from_json(const json& j, ObservableVector<T>& v) {
+            v.clear();
+            if (!j.is_array()) return;
+            for (const auto& el : j) {
+                T item{};
+                el.get_to(item);
+                v.push_back(std::move(item));
+            }
+        }
+    };
 
-inline int GW2_SCT::textCurveToInt(GW2_SCT::TextCurve type) {
-	return (int)type;
-}
+    // shared_ptr_map_with_creation<K,V> (map-like wrapper storing shared_ptr<V>)
+    template <typename K, typename V>
+    struct adl_serializer<shared_ptr_map_with_creation<K, V>> {
+        static void to_json(json& j, const shared_ptr_map_with_creation<K, V>& m) {
+            j = json::object();
+            for (const auto& kv : m) {
+                if (kv.second) j[kv.first] = *kv.second;
+                else           j[kv.first] = nullptr;
+            }
+        }
+        static void from_json(const json& j, shared_ptr_map_with_creation<K, V>& m) {
+            m.clear();
+            if (!j.is_object()) return;
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                if (it->is_null()) {
+                    m[it.key()] = nullptr;
+                }
+                else {
+                    auto ptr = std::make_shared<V>();
+                    it.value().get_to(*ptr);
+                    m[it.key()] = std::move(ptr);
+                }
+            }
+        }
+    };
 
-inline GW2_SCT::TextCurve GW2_SCT::intToTextCurve(int i) {
-	if (i < 0 || i > 1) return (GW2_SCT::TextCurve)0;
-	return (GW2_SCT::TextCurve)i;
-}
+} // namespace nlohmann
 
-inline int GW2_SCT::filterTypeToInt(GW2_SCT::FilterType type) {
-	return (int)type;
-}
+// ----------------------------------------------
+//  SkillFilterManager JSON
+// ----------------------------------------------
+namespace GW2_SCT {
 
-inline GW2_SCT::FilterType GW2_SCT::intToFilterType(int i) {
-	if (i < 0 || i > 1) return (GW2_SCT::FilterType)0;
-	return (GW2_SCT::FilterType)i;
-}
+    void to_json(nlohmann::json& j, const SkillFilterManager& manager) {
+        nlohmann::json filterSetsJson = nlohmann::json::object();
+        for (const auto& [name, filterSet] : manager.getAllFilterSets()) {
+            if (filterSet) {
+                filterSetsJson[name] = *filterSet;
+            }
+            else {
+                filterSetsJson[name] = nullptr;
+            }
+        }
+        j = std::move(filterSetsJson);
+    }
 
-inline int GW2_SCT::skillIconDisplayTypeToInt(GW2_SCT::SkillIconDisplayType type) {
-	return (int)type;
-}
+    void from_json(const nlohmann::json& j, SkillFilterManager& manager) {
+        if (!j.is_object()) return;
+        for (auto it = j.begin(); it != j.end(); ++it) {
+            try {
+                if (it->is_null()) {
+                    continue; // ignore null entries
+                }
+                auto filterSet = std::make_shared<NamedSkillFilterSet>();
+                it.value().get_to(*filterSet);
+                manager.addFilterSet(filterSet);
+            }
+            catch (...) {
+                // Skip invalid filter sets
+            }
+        }
+    }
 
-inline GW2_SCT::SkillIconDisplayType GW2_SCT::intSkillIconDisplayType(int i) {
-	if (i < 0 || i > 3) return (GW2_SCT::SkillIconDisplayType)0;
-	return (GW2_SCT::SkillIconDisplayType)i;
-}
+} // namespace GW2_SCT
 
-void GW2_SCT::to_json(nlohmann::json& j, const options_struct& p) {
-	j = nlohmann::json{
-		{"globalProfile", p.globalProfile},
-		{"profiles", p.profiles},
-		{"characterProfileMap", p.characterProfileMap}
-	};
-}
+// ----------------------------------------------
+//  options_struct JSON
+// ----------------------------------------------
+namespace GW2_SCT {
 
-void GW2_SCT::from_json(const nlohmann::json& j, options_struct& p) {
-	j.at("globalProfile").get_to(p.globalProfile);
-	j.at("profiles").get_to(p.profiles);
-	j.at("characterProfileMap").get_to(p.characterProfileMap);
-}
+    void to_json(nlohmann::json& j, const options_struct& p) {
+        j = nlohmann::json{
+            {"globalProfile", p.globalProfile},
+            {"profiles", p.profiles},
+            {"characterProfileMap", p.characterProfileMap}
+        };
+    }
 
-void GW2_SCT::to_json(nlohmann::json& j, const profile_options_struct& p) {
-	j = nlohmann::json{
-		{"sctEnabled", p.sctEnabled},
-		{"scrollingSpeed", p.scrollSpeed},
-		{"dropShadow", p.dropShadow},
-		{"maximalMessagesInStack", p.messagesInStack},
-		{"combineAllMessages", p.combineAllMessages},
-		{"masterFont", fotos(p.masterFont, false)},
-		{"defaultFontSize", p.defaultFontSize},
-		{"defaultCritFontSize", p.defaultCritFontSize},
-		{"selfMessageOnlyIncoming", p.selfMessageOnlyIncoming},
-		{"outgoingOnlyToTarget", p.outgoingOnlyToTarget},
-		{"professionColorGuardian", p.professionColorGuardian},
-		{"professionColorWarrior", p.professionColorWarrior},
-		{"professionColorEngineer", p.professionColorEngineer},
-		{"professionColorRanger", p.professionColorRanger},
-		{"professionColorThief", p.professionColorThief},
-		{"professionColorElementalist", p.professionColorElementalist},
-		{"professionColorMesmer", p.professionColorMesmer},
-		{"professionColorNecromancer", p.professionColorNecromancer},
-		{"professionColorRevenant", p.professionColorRevenant},
-		{"professionColorDefault", p.professionColorDefault},
-		{"scrollAreas", p.scrollAreaOptions},
-		{"filteredIDs", p.skillFilters},
-		{"skillIconsEnabled", p.skillIconsEnabled},
-		{"skillIconsPreload", p.preloadAllSkillIcons},
-		{"skillIconsDisplayType", p.skillIconsDisplayType}
-	};
-}
+    void from_json(const nlohmann::json& j, options_struct& p) {
+        if (j.contains("globalProfile")) j.at("globalProfile").get_to(p.globalProfile);
+        if (j.contains("profiles")) j.at("profiles").get_to(p.profiles);
+        if (j.contains("characterProfileMap")) j.at("characterProfileMap").get_to(p.characterProfileMap);
+    }
 
-void GW2_SCT::from_json(const nlohmann::json& j, profile_options_struct& p) {
-	j.at("sctEnabled").get_to(p.sctEnabled);
-	j.at("scrollingSpeed").get_to(p.scrollSpeed);
-	j.at("dropShadow").get_to(p.dropShadow);
-	j.at("maximalMessagesInStack").get_to(p.messagesInStack);
-	j.at("combineAllMessages").get_to(p.combineAllMessages);
-	p.masterFont = stofo(j.at("masterFont").get<std::string>(), false);
-	j.at("defaultFontSize").get_to(p.defaultFontSize);
-	j.at("defaultCritFontSize").get_to(p.defaultCritFontSize);
-	j.at("selfMessageOnlyIncoming").get_to(p.selfMessageOnlyIncoming);
-	j.at("outgoingOnlyToTarget").get_to(p.outgoingOnlyToTarget);
-	j.at("professionColorGuardian").get_to(p.professionColorGuardian);
-	j.at("professionColorWarrior").get_to(p.professionColorWarrior);
-	j.at("professionColorEngineer").get_to(p.professionColorEngineer);
-	j.at("professionColorRanger").get_to(p.professionColorRanger);
-	j.at("professionColorThief").get_to(p.professionColorThief);
-	j.at("professionColorElementalist").get_to(p.professionColorElementalist);
-	j.at("professionColorMesmer").get_to(p.professionColorMesmer);
-	j.at("professionColorNecromancer").get_to(p.professionColorNecromancer);
-	j.at("professionColorRevenant").get_to(p.professionColorRevenant);
-	j.at("professionColorDefault").get_to(p.professionColorDefault);
-	j.at("scrollAreas").get_to(p.scrollAreaOptions);
-	j.at("filteredIDs").get_to(p.skillFilters);
-	j.at("skillIconsEnabled").get_to(p.skillIconsEnabled);
-	j.at("skillIconsPreload").get_to(p.preloadAllSkillIcons);
-	j.at("skillIconsDisplayType").get_to(p.skillIconsDisplayType);
-}
+} // namespace GW2_SCT
 
-void GW2_SCT::to_json(nlohmann::json& j, const scroll_area_options_struct& p) {
-	j = nlohmann::json{
-		{"name", p.name},
-		{"horrizontalOffset", p.offsetX},
-		{"verticalOffset", p.offsetY},
-		{"width", p.width},
-		{"height", p.height},
-		{"textAlign", p.textAlign},
-		{"textFlow", p.textCurve},
-		{"messageReceivers", p.receivers}
-	};
-}
+// ----------------------------------------------
+//  profile_options_struct JSON
+// ----------------------------------------------
+namespace GW2_SCT {
 
-void GW2_SCT::from_json(const nlohmann::json& j, scroll_area_options_struct& p) {
-	j.at("name").get_to(p.name);
-	j.at("horrizontalOffset").get_to(p.offsetX);
-	j.at("verticalOffset").get_to(p.offsetY);
-	j.at("width").get_to(p.width);
-	j.at("height").get_to(p.height);
-	j.at("textAlign").get_to(p.textAlign);
-	j.at("textFlow").get_to(p.textCurve);
-	j.at("messageReceivers").get_to(p.receivers);
-}
+    void to_json(nlohmann::json& j, const profile_options_struct& p) {
+        j = nlohmann::json{};
+        j["sctEnabled"] = p.sctEnabled;
+        j["scrollSpeed"] = p.scrollSpeed;
+        j["dropShadow"] = p.dropShadow;
+        j["messagesInStack"] = p.messagesInStack;
+        j["combineAllMessages"] = p.combineAllMessages;
+        j["masterFont"] = p.masterFont;
+        j["defaultFontSize"] = p.defaultFontSize;
+        j["defaultCritFontSize"] = p.defaultCritFontSize;
+        j["selfMessageOnlyIncoming"] = p.selfMessageOnlyIncoming;
+        j["outgoingOnlyToTarget"] = p.outgoingOnlyToTarget;
+        j["professionColorGuardian"] = p.professionColorGuardian;
+        j["professionColorWarrior"] = p.professionColorWarrior;
+        j["professionColorEngineer"] = p.professionColorEngineer;
+        j["professionColorRanger"] = p.professionColorRanger;
+        j["professionColorThief"] = p.professionColorThief;
+        j["professionColorElementalist"] = p.professionColorElementalist;
+        j["professionColorMesmer"] = p.professionColorMesmer;
+        j["professionColorNecromancer"] = p.professionColorNecromancer;
+        j["professionColorRevenant"] = p.professionColorRevenant;
+        j["professionColorDefault"] = p.professionColorDefault;
+        j["scrollAreaOptions"] = p.scrollAreaOptions;
+        j["filterManager"] = p.filterManager;
+        j["skillIconsEnabled"] = p.skillIconsEnabled;
+        j["preloadAllSkillIcons"] = p.preloadAllSkillIcons;
+        j["skillIconsDisplayType"] = skillIconDisplayTypeToInt(p.skillIconsDisplayType);
+    }
 
-void GW2_SCT::to_json(nlohmann::json& j, const message_receiver_options_struct& p) {
-	j = nlohmann::json{
-		{"name", p.name},
-		{"category", p.category},
-		{"type", p.type},
-		{"enabled", p.enabled},
-		{"outputTemplate", p.outputTemplate},
-		{"color", p.color},
-		{"font", fotos(p.font, true)},
-		{"fontSize", p.fontSize}
-	};
-}
+    void from_json(const nlohmann::json& j, profile_options_struct& p) {
+        if (j.contains("sctEnabled")) j.at("sctEnabled").get_to(p.sctEnabled);
+        if (j.contains("scrollSpeed")) j.at("scrollSpeed").get_to(p.scrollSpeed);
+        if (j.contains("dropShadow")) j.at("dropShadow").get_to(p.dropShadow);
+        if (j.contains("messagesInStack")) j.at("messagesInStack").get_to(p.messagesInStack);
+        if (j.contains("combineAllMessages")) j.at("combineAllMessages").get_to(p.combineAllMessages);
+        if (j.contains("masterFont")) j.at("masterFont").get_to(p.masterFont);
+        if (j.contains("defaultFontSize")) j.at("defaultFontSize").get_to(p.defaultFontSize);
+        if (j.contains("defaultCritFontSize")) j.at("defaultCritFontSize").get_to(p.defaultCritFontSize);
+        if (j.contains("selfMessageOnlyIncoming")) j.at("selfMessageOnlyIncoming").get_to(p.selfMessageOnlyIncoming);
+        if (j.contains("outgoingOnlyToTarget")) j.at("outgoingOnlyToTarget").get_to(p.outgoingOnlyToTarget);
+        if (j.contains("professionColorGuardian")) j.at("professionColorGuardian").get_to(p.professionColorGuardian);
+        if (j.contains("professionColorWarrior")) j.at("professionColorWarrior").get_to(p.professionColorWarrior);
+        if (j.contains("professionColorEngineer")) j.at("professionColorEngineer").get_to(p.professionColorEngineer);
+        if (j.contains("professionColorRanger")) j.at("professionColorRanger").get_to(p.professionColorRanger);
+        if (j.contains("professionColorThief")) j.at("professionColorThief").get_to(p.professionColorThief);
+        if (j.contains("professionColorElementalist")) j.at("professionColorElementalist").get_to(p.professionColorElementalist);
+        if (j.contains("professionColorMesmer")) j.at("professionColorMesmer").get_to(p.professionColorMesmer);
+        if (j.contains("professionColorNecromancer")) j.at("professionColorNecromancer").get_to(p.professionColorNecromancer);
+        if (j.contains("professionColorRevenant")) j.at("professionColorRevenant").get_to(p.professionColorRevenant);
+        if (j.contains("professionColorDefault")) j.at("professionColorDefault").get_to(p.professionColorDefault);
+        if (j.contains("scrollAreaOptions")) j.at("scrollAreaOptions").get_to(p.scrollAreaOptions);
+        if (j.contains("filterManager")) j.at("filterManager").get_to(p.filterManager);
+        if (j.contains("skillIconsEnabled")) j.at("skillIconsEnabled").get_to(p.skillIconsEnabled);
+        if (j.contains("preloadAllSkillIcons")) j.at("preloadAllSkillIcons").get_to(p.preloadAllSkillIcons);
+        if (j.contains("skillIconsDisplayType")) {
+            int v{}; j.at("skillIconsDisplayType").get_to(v);
+            p.skillIconsDisplayType = intSkillIconDisplayType(v);
+        }
+    }
 
-void GW2_SCT::from_json(const nlohmann::json& j, message_receiver_options_struct& p) {
-	j.at("name").get_to(p.name);
-	j.at("category").get_to(p.category);
-	j.at("type").get_to(p.type);
-	j.at("enabled").get_to(p.enabled);
-	j.at("outputTemplate").get_to(p.outputTemplate);
-	j.at("color").get_to(p.color);
-	p.font = stofo(j.at("font").get<std::string>(), true);
-	j.at("fontSize").get_to(p.fontSize);
-}
+} // namespace GW2_SCT
 
-void GW2_SCT::to_json(nlohmann::json& j, const filter_options_struct& p) {
-	j = nlohmann::json{
-		{"type", p.type},
-		{"id", p.skillId},
-		{"name", p.skillName}
-	};
-}
+// ----------------------------------------------
+//  scroll_area_options_struct JSON
+// ----------------------------------------------
+namespace GW2_SCT {
 
-void GW2_SCT::from_json(const nlohmann::json& j, filter_options_struct& p) {
-	j.at("type").get_to(p.type);
-	j.at("id").get_to(p.skillId);
-	j.at("name").get_to(p.skillName);
-}
+    static int outlineStateToInt(ScrollAreaOutlineState s) {
+        return static_cast<int>(s);
+    }
+    static ScrollAreaOutlineState intToOutlineState(int i) {
+        return static_cast<ScrollAreaOutlineState>(i);
+    }
+
+    void to_json(nlohmann::json& j, const scroll_area_options_struct& p) {
+        j = nlohmann::json{};
+        j["name"] = p.name;
+        j["offsetX"] = p.offsetX;
+        j["offsetY"] = p.offsetY;
+        j["width"] = p.width;
+        j["height"] = p.height;
+        j["textAlign"] = textAlignToInt(p.textAlign);
+        j["textCurve"] = textCurveToInt(p.textCurve);
+        j["outlineState"] = outlineStateToInt(p.outlineState);
+        j["receivers"] = p.receivers;
+    }
+
+    void from_json(const nlohmann::json& j, scroll_area_options_struct& p) {
+        if (j.contains("name")) j.at("name").get_to(p.name);
+        if (j.contains("offsetX")) j.at("offsetX").get_to(p.offsetX);
+        if (j.contains("offsetY")) j.at("offsetY").get_to(p.offsetY);
+        if (j.contains("width")) j.at("width").get_to(p.width);
+        if (j.contains("height")) j.at("height").get_to(p.height);
+        if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
+        if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
+        if (j.contains("outlineState")) { int v{}; j.at("outlineState").get_to(v); p.outlineState = intToOutlineState(v); }
+        if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
+    }
+
+} // namespace GW2_SCT
+
+// ----------------------------------------------
+//  message_receiver_options_struct JSON
+// ----------------------------------------------
+namespace GW2_SCT {
+
+    void to_json(nlohmann::json& j, const message_receiver_options_struct& p) {
+        j = nlohmann::json{};
+        j["name"] = p.name;
+        j["category"] = static_cast<int>(p.category);
+        j["type"] = static_cast<int>(p.type);
+        j["enabled"] = p.enabled;
+        j["outputTemplate"] = p.outputTemplate;
+        j["color"] = p.color;
+        j["font"] = p.font;
+        j["fontSize"] = p.fontSize;
+        j["assignedFilterSets"] = p.assignedFilterSets;
+        j["filtersEnabled"] = p.filtersEnabled;
+    }
+
+    void from_json(const nlohmann::json& j, message_receiver_options_struct& p) {
+        if (j.contains("name")) j.at("name").get_to(p.name);
+        if (j.contains("category")) { int v{}; j.at("category").get_to(v); p.category = static_cast<MessageCategory>(v); }
+        if (j.contains("type")) { int v{}; j.at("type").get_to(v); p.type = static_cast<MessageType>(v); }
+        if (j.contains("enabled")) j.at("enabled").get_to(p.enabled);
+        if (j.contains("outputTemplate")) j.at("outputTemplate").get_to(p.outputTemplate);
+        if (j.contains("color")) j.at("color").get_to(p.color);
+        if (j.contains("font")) j.at("font").get_to(p.font);
+        if (j.contains("fontSize")) j.at("fontSize").get_to(p.fontSize);
+        if (j.contains("assignedFilterSets")) j.at("assignedFilterSets").get_to(p.assignedFilterSets);
+        if (j.contains("filtersEnabled")) j.at("filtersEnabled").get_to(p.filtersEnabled);
+    }
+
+} // namespace GW2_SCT

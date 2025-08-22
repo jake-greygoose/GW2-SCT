@@ -4,6 +4,8 @@
 #include "json.hpp"
 #include "Common.h"
 #include "UtilStructures.h"
+#include "SkillFilterStructures.h"
+
 
 namespace GW2_SCT {
 	enum class TextAlign {
@@ -23,13 +25,6 @@ namespace GW2_SCT {
 	extern int textCurveToInt(TextCurve type);
 	extern TextCurve intToTextCurve(int i);
 
-	enum class FilterType {
-		SKILL_ID = 0,
-		SKILL_NAME
-	};
-	extern int filterTypeToInt(FilterType type);
-	extern FilterType intToFilterType(int i);
-
 	enum class SkillIconDisplayType {
 		NORMAL = 0,
 		BLACK_CULLED,
@@ -42,7 +37,6 @@ namespace GW2_SCT {
 	class profile_options_struct;
 	class scroll_area_options_struct;
 	class message_receiver_options_struct;
-	class filter_options_struct;
 
 	class options_struct {
 	public:
@@ -76,7 +70,7 @@ namespace GW2_SCT {
 		std::string professionColorRevenant = "D16E5A";
 		std::string professionColorDefault = "FF0000";
 		ObservableVector<std::shared_ptr<scroll_area_options_struct>> scrollAreaOptions = {};
-		std::vector<filter_options_struct> skillFilters = {};
+		SkillFilterManager filterManager;
 		ObservableValue<bool> skillIconsEnabled = false;
 		ObservableValue<bool> preloadAllSkillIcons = false;
 		SkillIconDisplayType skillIconsDisplayType = SkillIconDisplayType::NORMAL;
@@ -115,16 +109,24 @@ namespace GW2_SCT {
 		ObservableValue<std::string> color = std::string("#FFFFFF");
 		ObservableValue<FontId> font = 0;
 		ObservableValue<float> fontSize = 22.f;
+		std::vector<std::string> assignedFilterSets = {};
+		bool filtersEnabled = true;
+
+		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {
+			if (!filtersEnabled || assignedFilterSets.empty()) {
+				return false;
+			}
+
+			for (const std::string& filterSetName : assignedFilterSets) {
+				auto filterSet = filterManager.getFilterSet(filterSetName);
+				if (filterSet && filterSet->filterSet.isFiltered(skillId, skillName)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
 	};
 	void to_json(nlohmann::json& j, const message_receiver_options_struct& p);
 	void from_json(const nlohmann::json& j, message_receiver_options_struct& p);
-
-	class filter_options_struct {
-	public:
-		FilterType type = FilterType::SKILL_ID;
-		uint32_t skillId = 0;
-		std::string skillName = "";
-	};
-	void to_json(nlohmann::json& j, const filter_options_struct& p);
-	void from_json(const nlohmann::json& j, filter_options_struct& p);
 }

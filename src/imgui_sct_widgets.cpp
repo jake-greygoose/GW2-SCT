@@ -2,6 +2,8 @@
 #include <sstream>
 #include <iomanip>
 #include <vector>
+#include <map>
+#include <algorithm>
 #include <imgui.h>
 #include <imgui_stdlib.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -76,7 +78,7 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 		PopStyleColor();
 
 		InputText(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Name), "receiver-name", indexString).c_str(), &receiverOptions->name);
-		
+
 		if (BeginCombo(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Messages_Category), "receiver-category-combo", indexString).c_str(), GW2_SCT::categoryNames.at(receiverOptions->category).c_str())) {
 			int categoryIterator = 0;
 			for (auto& categoryAndNamePair : GW2_SCT::categoryNames) {
@@ -107,12 +109,12 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 			ud.options = GW2_SCT::receiverInformationPerCategoryAndType.at(receiverOptions->category).at(receiverOptions->type).options;
 			if (InputText(BuildLabel(langString(GW2_SCT::LanguageCategory::Receiver_Option_UI, GW2_SCT::LanguageKey::Template), "receiver-template-input", indexString).c_str(), &edit, ImGuiInputTextFlags_CallbackAlways, [](ImGuiInputTextCallbackData* data) {
 				UserData* d = static_cast<UserData*>(data->UserData);
-				if (!GW2_SCT::TemplateInterpreter::validate(std::string(data->Buf), d->options)) { //validate here
+				if (!GW2_SCT::TemplateInterpreter::validate(std::string(data->Buf), d->options)) {
 					PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 0.f, 0.f, .6f));
 					d->changedBG = true;
 				}
 				return 0;
-			}, &ud)) {
+				}, &ud)) {
 				if (!ud.changedBG) {
 					receiverOptions->outputTemplate = edit;
 				}
@@ -160,6 +162,107 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 				ClampingDragFloat(langStringG(GW2_SCT::LanguageKey::Font_Size), &f, 0.f, f, f);
 				PopStyleVar();
 			}
+		}
+
+		ImGui::Separator();
+		ImGui::Text("Filters:");
+
+		if (ImGui::Checkbox(BuildLabel("Enabled", "receiver-filters-enabled", indexString).c_str(),
+			&receiverOptions->filtersEnabled)) {
+			GW2_SCT::Options::requestSave();
+		}
+
+		if (!receiverOptions->filtersEnabled) {
+			ImGui::BeginDisabled();
+		}
+
+		if (receiverOptions->assignedFilterSets.empty()) {
+			ImGui::Indent();
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No filter sets assigned");
+			ImGui::Unindent();
+		}
+		else {
+			auto it = receiverOptions->assignedFilterSets.begin();
+			while (it != receiverOptions->assignedFilterSets.end()) {
+				ImGui::PushID(std::distance(receiverOptions->assignedFilterSets.begin(), it));
+
+				ImGui::Indent();
+				ImGui::Text("%s", it->c_str());
+				ImGui::SameLine();
+
+				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+				if (ImGui::SmallButton("Remove")) {
+					it = receiverOptions->assignedFilterSets.erase(it);
+					GW2_SCT::Options::requestSave();
+				}
+				else {
+					++it;
+				}
+				ImGui::PopStyleColor();
+				ImGui::Unindent();
+
+				ImGui::PopID();
+			}
+		}
+
+		auto& allFilterSets = GW2_SCT::Options::get()->filterManager.getAllFilterSets();
+
+		std::vector<std::string> availableFilterSets;
+		for (const auto& [name, filterSet] : allFilterSets) {
+			if (std::find(receiverOptions->assignedFilterSets.begin(),
+				receiverOptions->assignedFilterSets.end(), name) ==
+				receiverOptions->assignedFilterSets.end()) {
+				availableFilterSets.push_back(name);
+			}
+		}
+
+		if (!availableFilterSets.empty()) {
+			static std::map<int, int> selectedIndexPerReceiver;
+			int& selectedIndex = selectedIndexPerReceiver[index];
+
+			if (selectedIndex >= availableFilterSets.size()) {
+				selectedIndex = 0;
+			}
+
+			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 50);
+			if (BeginCombo(BuildLabel("##add-filter-set", "receiver-add-filter", indexString).c_str(),
+				availableFilterSets[selectedIndex].c_str())) {
+				for (int i = 0; i < availableFilterSets.size(); i++) {
+					bool isSelected = (selectedIndex == i);
+					if (Selectable(BuildLabel(availableFilterSets[i], "filter-set-option", indexString + "-" + std::to_string(i)).c_str(),
+						isSelected)) {
+						selectedIndex = i;
+					}
+
+					if (IsItemHovered()) {
+						auto filterSet = GW2_SCT::Options::get()->filterManager.getFilterSet(availableFilterSets[i]);
+						if (filterSet && !filterSet->description.empty()) {
+							BeginTooltip();
+							Text("%s", filterSet->description.c_str());
+							EndTooltip();
+						}
+					}
+				}
+				EndCombo();
+			}
+
+			SameLine();
+			if (Button(BuildLabel("Add", "receiver-add-filter-button", indexString).c_str())) {
+				receiverOptions->assignedFilterSets.push_back(availableFilterSets[selectedIndex]);
+				GW2_SCT::Options::requestSave();
+
+				selectedIndex = 0;
+			}
+		}
+		else if (allFilterSets.empty()) {
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No filter sets created yet");
+		}
+		else {
+			ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "All filter sets assigned");
+		}
+
+		if (!receiverOptions->filtersEnabled) {
+			ImGui::EndDisabled();
 		}
 		TreePop();
 	}
@@ -234,7 +337,7 @@ bool ImGui::NewReceiverLine(GW2_SCT::MessageCategory* categoryOut, GW2_SCT::Mess
 	return ret;
 }
 
-int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::filter_options_struct* opt) {
+int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::SkillFilter* opt) {
 	ImGuiWindow* window = GetCurrentWindow();
 	if (window->SkipItems)
 		return false;
@@ -248,16 +351,16 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::filter_options_struct* opt) {
 	const float available_size = window->Size.x - (square_size + style.FramePadding.y * 2) - (window->ScrollbarY ? style.ScrollbarSize : 0) - 2 * style.WindowPadding.x;
 	int value_changed = 0;
 
-	BeginGroup();
-	PushID(label);
+	ImGui::BeginGroup();
+	ImGui::PushID(label);
 
-	int typeInt = filterTypeToInt(opt->type);
+	int typeInt = static_cast<int>(opt->type);
 	ImGui::PushItemWidth((available_size - style.ItemInnerSpacing.x) * 0.3f);
-	if (Combo(("##filter-" + iStr + "-type").c_str(), &typeInt, GW2_SCT::Options::getSkillFilterTypeSelectionString().c_str())) {
-		opt->type = GW2_SCT::intToFilterType(typeInt);
+	if (ImGui::Combo(("##filter-" + iStr + "-type").c_str(), &typeInt, GW2_SCT::Options::getSkillFilterTypeSelectionString().c_str())) {
+		opt->type = static_cast<GW2_SCT::FilterType>(typeInt);
 	}
 	ImGui::PopItemWidth();
-	SameLine((available_size - style.ItemInnerSpacing.x) * 0.3f, style.ItemInnerSpacing.x);
+	ImGui::SameLine((available_size - style.ItemInnerSpacing.x) * 0.3f, style.ItemInnerSpacing.x);
 	ImGui::PushItemWidth((available_size - style.ItemInnerSpacing.x) * 0.7f);
 	if (opt->type == GW2_SCT::FilterType::SKILL_ID) {
 		std::vector<char> arr(512);
@@ -268,11 +371,11 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::filter_options_struct* opt) {
 			bool changedBG = false;
 		} ud;
 
-		if (InputText(("##filter-" + iStr + "-id").c_str(), arr.data(), 512, ImGuiInputTextFlags_CallbackAlways, [](ImGuiInputTextCallbackData* data) {
+		if (ImGui::InputText(("##filter-" + iStr + "-id").c_str(), arr.data(), 512, ImGuiInputTextFlags_CallbackAlways, [](ImGuiInputTextCallbackData* data) {
 			UserData* d = static_cast<UserData*>(data->UserData);
 			std::string buf(data->Buf);
-			if (buf.empty() || buf.find_first_not_of("0123456789") != std::string::npos) { //validate here
-				PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 0.f, 0.f, .6f));
+			if (buf.empty() || buf.find_first_not_of("0123456789") != std::string::npos) {
+				ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1.f, 0.f, 0.f, .6f));
 				d->changedBG = true;
 			}
 			return 0;
@@ -283,44 +386,45 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::filter_options_struct* opt) {
 			}
 		}
 		if (ud.changedBG) {
-			PopStyleColor();
+			ImGui::PopStyleColor();
 		}
-	} else if (opt->type == GW2_SCT::FilterType::SKILL_NAME) {
+	}
+	else if (opt->type == GW2_SCT::FilterType::SKILL_NAME) {
 		std::vector<char> arr(512);
 		std::string idStr(opt->skillName);
 		std::copy(idStr.begin(), idStr.size() < 512 ? idStr.end() : idStr.begin() + 512, arr.begin());
 
-		if (InputText(("##filter-" + iStr + "-skillname").c_str(), arr.data(), 512)) {
+		if (ImGui::InputText(("##filter-" + iStr + "-skillname").c_str(), arr.data(), 512)) {
 			opt->skillName = std::string(arr.data());
 			value_changed = FilterOptionLine_Value;
 		}
 	}
 	ImGui::PopItemWidth();
 
-	SameLine(available_size, style.ItemInnerSpacing.x);
+	ImGui::SameLine(available_size, style.ItemInnerSpacing.x);
 
-	PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
-	if (Button("-", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-		OpenPopup(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title));
+	ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+	if (ImGui::Button("-", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
+		ImGui::OpenPopup(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title));
 	}
-	PopStyleColor();
+	ImGui::PopStyleColor();
 
-	if (BeginPopupModal(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title))) {
-		Text(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Content));
-		Separator();
-		if (Button(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
+	if (ImGui::BeginPopupModal(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title))) {
+		ImGui::Text(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Content));
+		ImGui::Separator();
+		if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
 			value_changed |= FilterOptionLine_Remove;
-			CloseCurrentPopup();
+			ImGui::CloseCurrentPopup();
 		}
-		SameLine();
-		if (Button(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Cancel), ImVec2(120, 0))) {
-			CloseCurrentPopup();
+		ImGui::SameLine();
+		if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Skill_Filter_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Cancel), ImVec2(120, 0))) {
+			ImGui::CloseCurrentPopup();
 		}
-		EndPopup();
+		ImGui::EndPopup();
 	}
 
-	PopID();
-	EndGroup();
+	ImGui::PopID();
+	ImGui::EndGroup();
 
 	return value_changed;
 }
