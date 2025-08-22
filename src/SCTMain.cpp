@@ -170,15 +170,19 @@ uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char
 	if (ev != nullptr) {
 		if (revision == 1) {
 			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
-			if (src && src->self && selfInstID != ev1->src_instid) {
-				selfInstID = ev1->src_instid;
-				Options::loadProfile(std::string(src->name));
+			if (src && src->self) {
+				if (selfInstID != ev1->src_instid || Options::getCurrentCharacterName().empty()) {
+					selfInstID = ev1->src_instid;
+					Options::loadProfile(std::string(src->name));
+				}
 			}
 		}
 		else {
-			if (src && src->self && selfInstID != ev->src_instid) {
-				selfInstID = ev->src_instid;
-				Options::loadProfile(std::string(src->name));
+			if (src && src->self) {
+				if (selfInstID != ev->src_instid || Options::getCurrentCharacterName().empty()) {
+					selfInstID = ev->src_instid;
+					Options::loadProfile(std::string(src->name));
+				}
 			}
 		}
 	}
