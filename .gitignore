@@ -44,3 +44,4 @@ RelWithDebInfo
 *.bat
 *.sln
 cmake_install.cmake
+*.log
