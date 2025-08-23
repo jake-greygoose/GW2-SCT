@@ -112,19 +112,63 @@ namespace GW2_SCT {
 		std::vector<std::string> assignedFilterSets = {};
 		bool filtersEnabled = true;
 
+		// TODO: relocate this
 		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {
 			if (!filtersEnabled || assignedFilterSets.empty()) {
 				return false;
 			}
 
+			std::vector<std::pair<FilterAction, int>> matchingFilters; // action, specificity
+			FilterAction combinedDefaultAction = FilterAction::ALLOW;
+
 			for (const std::string& filterSetName : assignedFilterSets) {
 				auto filterSet = filterManager.getFilterSet(filterSetName);
-				if (filterSet && filterSet->filterSet.isFiltered(skillId, skillName)) {
-					return true;
+				if (!filterSet) continue;
+
+				if (filterSet->filterSet.defaultAction == FilterAction::BLOCK) {
+					combinedDefaultAction = FilterAction::BLOCK;
+				}
+
+				for (const auto& filter : filterSet->filterSet.filters) {
+					if (filter.matches(skillId, skillName)) {
+						matchingFilters.push_back({ filter.action, filter.getSpecificityScore() });
+					}
 				}
 			}
 
-			return false;
+			if (matchingFilters.empty()) {
+				return combinedDefaultAction == FilterAction::BLOCK;
+			}
+
+			FilterAction finalAction = combinedDefaultAction;
+			int highestSpecificity = -1;
+			bool hasAllow = false;
+			bool hasBlock = false;
+
+			for (const auto& filterPair : matchingFilters) {
+				if (filterPair.second > highestSpecificity) {
+					highestSpecificity = filterPair.second;
+				}
+			}
+
+			for (const auto& filterPair : matchingFilters) {
+				if (filterPair.second == highestSpecificity) {
+					if (filterPair.first == FilterAction::ALLOW) hasAllow = true;
+					if (filterPair.first == FilterAction::BLOCK) hasBlock = true;
+				}
+			}
+
+			if (hasAllow && hasBlock) {
+				finalAction = FilterAction::ALLOW;  // ALLOW wins conflicts
+			}
+			else if (hasAllow) {
+				finalAction = FilterAction::ALLOW;
+			}
+			else if (hasBlock) {
+				finalAction = FilterAction::BLOCK;
+			}
+
+			return finalAction == FilterAction::BLOCK;
 		}
 	};
 	void to_json(nlohmann::json& j, const message_receiver_options_struct& p);
