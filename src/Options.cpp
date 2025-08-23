@@ -667,6 +667,67 @@ void GW2_SCT::Options::paintSkillFilters() {
 			auto filterSet = profile->filterManager.getFilterSet(selectedFilterSet);
 			if (filterSet) {
 				ImGui::Text("Filter Set: %s", filterSet->name.c_str());
+
+				static char renameBuffer[256] = "";
+				if (ImGui::BeginPopupModal("Rename Filter Set")) {
+					if (ImGui::IsWindowAppearing()) {
+						strncpy(renameBuffer, filterSet->name.c_str(), sizeof(renameBuffer) - 1);
+						renameBuffer[sizeof(renameBuffer) - 1] = '\0';
+					}
+
+					ImGui::Text("Enter new name:");
+					ImGui::InputText("##rename_filter_set", renameBuffer, sizeof(renameBuffer));
+
+					bool nameExists = false;
+					if (strlen(renameBuffer) > 0 && strcmp(renameBuffer, filterSet->name.c_str()) != 0) {
+						nameExists = (profile->filterManager.getFilterSet(renameBuffer) != nullptr);
+						if (nameExists) {
+							ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "A filter set with this name already exists!");
+						}
+					}
+
+					ImGui::Separator();
+
+					if (strlen(renameBuffer) == 0 || nameExists) {
+						ImGui::BeginDisabled();
+					}
+					if (ImGui::Button("OK", ImVec2(120, 0))) {
+						if (strlen(renameBuffer) > 0 && strcmp(renameBuffer, filterSet->name.c_str()) != 0) {
+							std::string oldName = filterSet->name;
+							std::string newName = renameBuffer;
+
+							filterSet->name = newName;
+
+							profile->filterManager.removeFilterSet(oldName);
+							profile->filterManager.addFilterSet(filterSet);
+
+							for (auto& scrollArea : profile->scrollAreaOptions) {
+								for (auto& receiver : scrollArea->receivers) {
+									for (auto& assignedName : receiver->assignedFilterSets) {
+										if (assignedName == oldName) {
+											assignedName = newName;
+										}
+									}
+								}
+							}
+
+							selectedFilterSet = newName;
+
+							requestSave();
+							ImGui::CloseCurrentPopup();
+						}
+					}
+					if (strlen(renameBuffer) == 0 || nameExists) {
+						ImGui::EndDisabled();
+					}
+
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+						ImGui::CloseCurrentPopup();
+					}
+					ImGui::EndPopup();
+				}
+
 				ImGui::Separator();
 
 				ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
@@ -674,6 +735,11 @@ void GW2_SCT::Options::paintSkillFilters() {
 					ImGui::OpenPopup("Delete Filter Set");
 				}
 				ImGui::PopStyleColor();
+
+				ImGui::SameLine();
+				if (ImGui::Button("Rename")) {
+					ImGui::OpenPopup("Rename Filter Set");
+				}
 
 				if (ImGui::BeginPopupModal("Delete Filter Set")) {
 					ImGui::Text("Delete filter set '%s'?", filterSet->name.c_str());
@@ -731,6 +797,14 @@ void GW2_SCT::Options::paintSkillFilters() {
 
 					ImGui::BeginGroup();
 
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+					if (ImGui::Button("X")) {
+						shouldDelete = true;
+					}
+					ImGui::PopStyleColor();
+
+					ImGui::SameLine();
+
 					int action = static_cast<int>(it->action);
 					ImGui::SetNextItemWidth(80);
 					if (ImGui::Combo("##action", &action, "Allow\0Block\0")) {
@@ -779,14 +853,6 @@ void GW2_SCT::Options::paintSkillFilters() {
 						break;
 					}
 					}
-
-					ImGui::SameLine();
-
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
-					if (ImGui::Button("X")) {
-						shouldDelete = true;
-					}
-					ImGui::PopStyleColor();
 
 					ImGui::EndGroup();
 
