@@ -201,7 +201,6 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 	if (ev) {
 		if (revision == 1) {
 			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
-
 			/* default names */
 			if (!src->name || !strlen(src->name)) src->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Source));
 			if (!dst->name || !strlen(dst->name)) dst->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Target));
@@ -231,9 +230,7 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 
 			else {
 				std::vector<MessageType> types;
-
 				if (ev1->buff) {
-					// Buff-based effects (DoT, HoT, etc.)
 					if (ev1->buff_dmg > 0) {
 						if (ev1->overstack_value != 0) {
 							ev1->buff_dmg -= ev1->overstack_value;
@@ -249,11 +246,13 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 							types.push_back(MessageType::SHIELD_REMOVE);
 						}
 						if (ev1->buff_dmg < 0) {
-							switch (ev1->skillid) {
+							switch (ev1->skillid)
+							{
 							case 736: types.push_back(MessageType::BLEEDING); break;
 							case 737: types.push_back(MessageType::BURNING); break;
 							case 723: types.push_back(MessageType::POISON); break;
 							case 861: types.push_back(MessageType::CONFUSION); break;
+							case 873: types.push_back(MessageType::RETALIATION); break;
 							case 19426: types.push_back(MessageType::TORMENT); break;
 							default: types.push_back(MessageType::DOT); break;
 							}
@@ -261,12 +260,12 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 					}
 				}
 				else {
-					// Non-buff effects (direct damage, healing, barriers)
 					if (ev1->value > 0) {
 						if (ev1->overstack_value != 0) {
+							ev1->value += ev1->overstack_value;
 							types.push_back(MessageType::SHIELD_RECEIVE);
 						}
-						else {
+						if (ev1->value > 0) {
 							types.push_back(MessageType::HEAL);
 						}
 					}
@@ -291,31 +290,24 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 						}
 					}
 				}
-
 				if (types.size() > 0) {
 					ev1->skillid = remapSkillID(ev1->skillid);
 				}
-
 				for (auto type : types) {
-					// Player outgoing damage/effects
 					if (src->self == 1 && (!Options::get()->outgoingOnlyToTarget || dst->id == targetAgentId)) {
 						if (!Options::get()->selfMessageOnlyIncoming || dst->self != 1) {
 							std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PLAYER_OUT, type, ev1, src, dst, skillname);
 							sendMessageToEmission(m);
 						}
 					}
-					// Pet outgoing damage/effects
 					else if (ev1->src_master_instid == selfInstID && (!Options::get()->outgoingOnlyToTarget || dst->id == targetAgentId)) {
 						std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PET_OUT, type, ev1, src, dst, skillname);
 						sendMessageToEmission(m);
 					}
-
-					// Player incoming damage/effects
 					if (dst->self == 1) {
 						std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PLAYER_IN, type, ev1, src, dst, skillname);
 						sendMessageToEmission(m);
 					}
-					// Pet incoming damage/effects
 					else if (ev1->dst_master_instid == selfInstID) {
 						std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PET_IN, type, ev1, src, dst, skillname);
 						sendMessageToEmission(m);
@@ -324,18 +316,99 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 			}
 		}
 		else {
-			LOG("WARNING: Unexpected combat event revision ", revision, " encountered. Only revision 1 is supported.");
-			return 0;
+			/* default names */
+			if (!src->name || !strlen(src->name)) src->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Source));
+			if (!dst->name || !strlen(dst->name)) dst->name = _strdup(langStringG(LanguageKey::Unknown_Skill_Target));
+			if (!skillname || !strlen(skillname)) skillname = _strdup(langStringG(LanguageKey::Unknown_Skill_Name));
+
+			if (src->self) {
+				selfInstID = ev->src_instid;
+			}
+			if (dst->self) {
+				selfInstID = ev->dst_instid;
+			}
+
+			/* statechange */
+			if (ev->is_statechange) {
+				return 0;
+			}
+
+			/* activation */
+			else if (ev->is_activation) {
+				return 0;
+			}
+
+			/* buff remove */
+			else if (ev->is_buffremove) {
+				return 0;
+			}
+
+			else {
+				MessageType type = MessageType::NONE;
+				if (ev->buff) {
+					if (ev->buff_dmg < 0) {
+						type = MessageType::HOT;
+					}
+					else if (ev->buff_dmg > 0) {
+						switch (ev->skillid)
+						{
+						case 736: type = MessageType::BLEEDING; break;
+						case 737: type = MessageType::BURNING; break;
+						case 723: type = MessageType::POISON; break;
+						case 861: type = MessageType::CONFUSION; break;
+						case 873: type = MessageType::RETALIATION; break;
+						case 19426: type = MessageType::TORMENT; break;
+						default: type = MessageType::DOT; break;
+						}
+					}
+				}
+				else {
+					if (ev->value < 0) {
+						type = MessageType::HEAL;
+					}
+					else switch (ev->result) {
+					case CBTR_GLANCE:
+					case CBTR_NORMAL: type = MessageType::PHYSICAL; break;
+					case CBTR_CRIT: type = MessageType::CRIT; break;
+					case CBTR_BLOCK: type = MessageType::BLOCK;  break;
+					case CBTR_EVADE: type = MessageType::EVADE; break;
+					case CBTR_ABSORB: type = MessageType::INVULNERABLE; break;
+					case CBTR_BLIND: type = MessageType::MISS; break;
+					default:
+						break;
+					}
+				}
+				if (type != MessageType::NONE) {
+					if (src->self) {
+						if (!Options::get()->selfMessageOnlyIncoming || !dst->self) {
+							std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PLAYER_OUT, type, ev, src, dst, skillname);
+							sendMessageToEmission(m);
+						}
+					}
+					else if (ev->src_master_instid == selfInstID) {
+						std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PET_OUT, type, ev, src, dst, skillname);
+						sendMessageToEmission(m);
+					}
+					if (dst->self) {
+						std::shared_ptr<GW2_SCT::EventMessage> m = std::make_shared<GW2_SCT::EventMessage>(MessageCategory::PLAYER_IN, type, ev, src, dst, skillname);
+						sendMessageToEmission(m);
+					}
+					/*else if (ev->dst_master_instid == selfInstID) {
+						std::shared_ptr<GW2_SCT::Message> m = std::make_shared<GW2_SCT::Message>(MessageCategory::PET_IN, type, ev, src, dst, skillname);
+						ScrollArea::emitMessage(m);
+					}*/
+				}
+			}
 		}
 	}
 	else {
-		// Target agent handling when ev is null
 		if (src != nullptr) {
 			targetAgentId = src->id;
 		}
 	}
 	return 0;
 }
+
 
 uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	#if _DEBUG
