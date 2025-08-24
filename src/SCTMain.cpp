@@ -39,33 +39,20 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	LOG("Running arcvers: ", arcvers);
 	LOG("Running sct version: ", SCT_VERSION_STRING, " / ", __DATE__, " / ", __TIME__);
 
-	Options::profile.onAssign([this](std::shared_ptr<profile_options_struct> oldProfile, std::shared_ptr<profile_options_struct> newProfile) {
-		if (oldProfile) {
-			if (currentScrollAreaPushBackCallbackId >= 0) {
-				oldProfile->scrollAreaOptions.removeOnPushBackCallback(currentScrollAreaPushBackCallbackId);
-			}
-			if (currentScrollAreaEraseCallbackId >= 0) {
-				oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
-			}
+	Options::profile.onAssign([=](std::shared_ptr<profile_options_struct> oldProfile, std::shared_ptr<profile_options_struct> newProfile) {
+		if (currentScrollAreaPushBackCallbackId >= 0) {
+			oldProfile->scrollAreaOptions.removeOnPushBackCallback(currentScrollAreaPushBackCallbackId);
 		}
-		scrollAreas.clear();
-
-		for (const auto& scrollAreaOptions : newProfile->scrollAreaOptions) {
-			scrollAreas.push_back(std::make_shared<ScrollArea>(scrollAreaOptions));
+		if (currentScrollAreaEraseCallbackId >= 0) {
+			oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
 		}
-		currentScrollAreaPushBackCallbackId = newProfile->scrollAreaOptions.addOnPushBackCallback(
-			[this](const std::shared_ptr<scroll_area_options_struct>& newVal) {
-				scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
-			}
-		);
-		currentScrollAreaEraseCallbackId = newProfile->scrollAreaOptions.addOnEraseCallback(
-			[this](int pos) {
-				if (pos < scrollAreas.size()) {
-					scrollAreas.erase(std::begin(scrollAreas) + pos);
-				}
-			}
-		);
-		});;
+		currentScrollAreaPushBackCallbackId = newProfile->scrollAreaOptions.addOnPushBackCallback([=](const std::shared_ptr<scroll_area_options_struct>& newVal) {
+			scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
+			});
+		currentScrollAreaEraseCallbackId = newProfile->scrollAreaOptions.addOnEraseCallback([=](int pos) {
+			scrollAreas.erase(std::begin(scrollAreas) + pos);
+			});
+		});
 	LOG("Set up options changing hook");
 	SkillIconManager::init();
 	LOG("Started skill icon manager");
