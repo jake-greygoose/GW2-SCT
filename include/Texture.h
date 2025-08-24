@@ -13,11 +13,9 @@ namespace GW2_SCT {
         virtual void internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) = 0;
         virtual bool internalCreate() = 0;
         void ensureCreation();
-        static bool IsInPresentCycle();
         bool isReady() const { return _created; }
 
         static void BeginPresentCycle();
-        static void EndPresentCycle();
         static void ProcessPendingCreations();
 
     protected:
@@ -64,7 +62,6 @@ namespace GW2_SCT {
 
     class TextureD3D11 {
     public:
-        // Render-thread helpers
         static void MarkRenderThread();
         static bool IsOnRenderThread();
 

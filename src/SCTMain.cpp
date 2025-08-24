@@ -11,8 +11,8 @@
 #include "ExampleMessageOptions.h"
 #include "Texture.h"
 #include <chrono>
-#include <queue> // NEW: For the message queue
-#include <mutex> // NEW: For the mutex
+#include <queue>
+#include <mutex>
 
 #if _DEBUG
 long uiFrames = 0;
@@ -22,9 +22,6 @@ float uiTime = 0;
 float windowWidth;
 float windowHeight;
 
-// NEW: Add a thread-safe queue for incoming messages from the combat thread.
-// Ideally, these would be private members of the SCTMain class declared in its header file.
-// For this example, we'll define them as static variables with file scope.
 static std::queue<std::shared_ptr<GW2_SCT::EventMessage>> s_incomingMessageQueue;
 static std::mutex s_queueMutex;
 
@@ -411,30 +408,23 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 }
 
 uintptr_t GW2_SCT::SCTMain::UIUpdate() {
-#if _DEBUG
-	auto start_time = std::chrono::high_resolution_clock::now();
-#endif
+	#if _DEBUG
+		auto start_time = std::chrono::high_resolution_clock::now();
+	#endif
 
-	// Start Present-safe window (this will also process pending texture creations; see step 2)
 	GW2_SCT::Texture::BeginPresentCycle();
 
-	// NEW: Process the incoming message queue on the RENDER THREAD.
-	// This moves the problematic `receiveMessage` call (and subsequent font baking) to the correct thread.
 	{
-		// Move messages to a local queue to minimize the time we hold the lock.
 		std::queue<std::shared_ptr<EventMessage>> localQueue;
 		{
 			std::lock_guard<std::mutex> lock(s_queueMutex);
 			std::swap(localQueue, s_incomingMessageQueue);
 		}
 
-		// Now process the messages from the local queue without holding the lock.
 		while (!localQueue.empty()) {
 			std::shared_ptr<EventMessage> msg = localQueue.front();
 			localQueue.pop();
 
-			// This is the original logic from sendMessageToEmission,
-			// now running safely on the render thread.
 			for (auto scrollArea : scrollAreas) {
 				scrollArea->receiveMessage(msg);
 			}
@@ -442,16 +432,11 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 		}
 	}
 
-	// Create new icon textures (immutable) on the render thread, inside Present.
-	GW2_SCT::SkillIcon::ProcessPendingIconTextures();  // :contentReference[oaicite:0]{index=0}
-
-	// Apply any glyph/atlas pixel writes (staging map/copy) only inside Present.
-	GW2_SCT::FontType::ProcessPendingAtlasUpdates();   // will early-return if not in Present (step 3)
-
-	// Queue any new atlas texture creations (doesn't create now; just queues)
+	GW2_SCT::SkillIcon::ProcessPendingIconTextures();
+	GW2_SCT::FontType::ProcessPendingAtlasUpdates();
 	FontType::ensureAtlasCreation();
 
-	// Normal UI drawing
+	// Options
 	Options::paint();
 	ExampleMessageOptions::paint();
 	if (Options::get()->sctEnabled) {
@@ -466,9 +451,6 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 
 		ImGui::End();
 	}
-
-	// Close Present-safe window (no creation here)
-	GW2_SCT::Texture::EndPresentCycle();
 
 #if _DEBUG
 	auto time = std::chrono::high_resolution_clock::now() - start_time;
@@ -494,8 +476,6 @@ uintptr_t GW2_SCT::SCTMain::UIOptions() {
 	return 0;
 }
 
-// MODIFIED: This function is called from the COMBAT THREAD.
-// Its only job now is to quickly queue the message and return.
 void GW2_SCT::SCTMain::sendMessageToEmission(std::shared_ptr<EventMessage> m) {
 	if (m->hasToBeFiltered()) return;
 

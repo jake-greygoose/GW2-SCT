@@ -70,13 +70,13 @@ void GW2_SCT::ScrollArea::paintOutline() {
 }
 
 void GW2_SCT::ScrollArea::paint() {
-
 	std::unique_lock<std::mutex> mlock(messageQueueMutex);
+
 	if (!messageQueue.empty()) {
 		MessagePrerender& m = messageQueue.front();
 		time_point<system_clock> now = system_clock::now();
 		if (paintedMessages.empty()) {
-			paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
+			paintedMessages.push_back(std::make_pair(std::move(m), now));
 			messageQueue.pop_front();
 		}
 		else {
@@ -89,17 +89,16 @@ void GW2_SCT::ScrollArea::paint() {
 					for (auto it = paintedMessages.rbegin(); it != paintedMessages.rend(); ++it) {
 						it->second = it->second - milliseconds(msUntilNextMessageCanBePainted);
 					}
-					paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
+					paintedMessages.push_back(std::make_pair(std::move(m), now));
 					messageQueue.pop_front();
 				}
 			}
 			else {
-				paintedMessages.push_back(std::pair<MessagePrerender, time_point<system_clock>>(m, now));
+				paintedMessages.push_back(std::make_pair(std::move(m), now));
 				messageQueue.pop_front();
 			}
 		}
 	}
-	mlock.unlock();
 
 	paintOutline();
 

@@ -5,6 +5,8 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <iterator>
+#include <vector>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -145,11 +147,9 @@ void GW2_SCT::FontType::ensureAtlasCreation() {
     size_t atlasId = 0;
     std::lock_guard lock(_allocatedAtlassesMutex);
 
-    // DO NOT create here. Creations are handled in Texture::BeginPresentCycle().
-
     while (atlasId < _allocatedAtlases.size()) {
         if (_allocatedAtlases[atlasId]->texture != nullptr) {
-            _allocatedAtlases[atlasId]->texture->ensureCreation(); // just queue it
+            _allocatedAtlases[atlasId]->texture->ensureCreation();
         }
         atlasId++;
     }
@@ -168,83 +168,59 @@ void GW2_SCT::FontType::cleanup() {
 
 
 void GW2_SCT::FontType::ProcessPendingAtlasUpdates() {
-    std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+    if (!GW2_SCT::TextureD3D11::IsOnRenderThread()) return;
+
+    std::vector<PendingAtlasUpdate> updatesToProcess;
+    {
+        std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+        if (pendingAtlasUpdates.empty()) return;
+        updatesToProcess.assign(std::make_move_iterator(pendingAtlasUpdates.begin()), std::make_move_iterator(pendingAtlasUpdates.end()));
+        pendingAtlasUpdates.clear();
+    }
+
+    std::vector<PendingAtlasUpdate> updatesToRequeue;
     std::lock_guard<std::mutex> atlasLock(_allocatedAtlassesMutex);
-    if (!GW2_SCT::Texture::IsInPresentCycle()) return;
 
-    if (pendingAtlasUpdates.empty()) return;
-
-    #if _DEBUG
-        LOG("[", getTimestamp(), "] ATLAS: Processing ", pendingAtlasUpdates.size(), " pending atlas updates");
-    #endif
-
-    auto it = pendingAtlasUpdates.begin();
-    int processed = 0;
-    int failed = 0;
-    int skipped = 0;
-
-    while (it != pendingAtlasUpdates.end()) {
-        auto& update = *it;
-
+    for (auto& update : updatesToProcess) {
         if (update.glyph == nullptr) {
-
-            #if _DEBUG
-                LOG("[", getTimestamp(), "] ATLAS: Skipping update with null glyph for codepoint ", update.codePoint, " at scale ", update.scale);
-            #endif
-
-            it = pendingAtlasUpdates.erase(it);
-            skipped++;
             continue;
         }
 
-        // Check if atlas texture is ready
-        if (update.atlasId < _allocatedAtlases.size() &&
-            _allocatedAtlases[update.atlasId]->texture != nullptr &&
-            _allocatedAtlases[update.atlasId]->texture->isReady()) {
-
-            // Texture is ready, perform the update
+        if (update.atlasId < _allocatedAtlases.size() && _allocatedAtlases[update.atlasId]->texture != nullptr && _allocatedAtlases[update.atlasId]->texture->isReady()) {
             MutableTexture::UpdateData area;
             ImVec2 pos = update.atlasPosition;
             ImVec2 size = ImVec2(update.glyph->getWidth(), update.glyph->getHeight());
-            if (_allocatedAtlases[update.atlasId]->texture->startUpdate(pos, size, &area)) {
 
-                unsigned char* currentPosition = nullptr;
+            if (_allocatedAtlases[update.atlasId]->texture->startUpdate(pos, size, &area)) {
+                unsigned char* src = update.glyph->getBitmap();
+                unsigned char* dst = area.data;
+                size_t src_pitch = update.glyph->getWidth();
+                size_t dst_pitch = area.rowPitch;
+
                 for (size_t y = 0; y < update.glyph->getHeight(); y++) {
-                    currentPosition = area.data + y * area.rowPitch;
-                    for (int x = 0; x < update.glyph->getWidth(); x++) {
-                        currentPosition[0] = 0xff;
-                        currentPosition[1] = 0xff;
-                        currentPosition[2] = 0xff;
-                        currentPosition[3] = update.glyph->getBitmap()[y * update.glyph->getWidth() + x];
-                        currentPosition += 4;
+                    uint32_t* dst_row = reinterpret_cast<uint32_t*>(dst + y * dst_pitch);
+                    unsigned char* src_row = src + y * src_pitch;
+                    for (size_t x = 0; x < update.glyph->getWidth(); x++) {
+                        dst_row[x] = 0x00FFFFFF | (static_cast<uint32_t>(src_row[x]) << 24);
                     }
                 }
                 _allocatedAtlases[update.atlasId]->texture->endUpdate();
-                
-                #if _DEBUG
-                    LOG("[", getTimestamp(), "] ATLAS: *** SUCCESSFULLY UPDATED *** atlas for codepoint ", update.codePoint, " at scale ", update.scale);
-                #endif
-
-                it = pendingAtlasUpdates.erase(it);
-                processed++;
             }
             else {
-                LOG("[", getTimestamp(), "] ATLAS: *** FAILED TO START UPDATE *** for codepoint ", update.codePoint, " at scale ", update.scale);
-                it = pendingAtlasUpdates.erase(it);
-                failed++;
+                updatesToRequeue.push_back(std::move(update));
             }
         }
         else {
-            // Texture not ready yet, keep in queue for next time
-            ++it;
+            updatesToRequeue.push_back(std::move(update));
         }
     }
 
-    #if _DEBUG
-        if (processed > 0 || failed > 0 || skipped > 0) {
-            LOG("[", getTimestamp(), "] ATLAS: Update complete - processed: ", processed, ", failed: ", failed, ", skipped: ", skipped, ", remaining: ", pendingAtlasUpdates.size());
+    if (!updatesToRequeue.empty()) {
+        std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+        for (auto& u : updatesToRequeue) {
+            pendingAtlasUpdates.push_back(std::move(u));
         }
-    #endif
+    }
 }
 
 short getCodepointLength(std::string text, size_t i) {
@@ -307,7 +283,6 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
     LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize called for scale ", scale, " (fontSize ", fontSize, ") with ", codepointsWithoutDuplicates.size(), " codepoints");
 #endif
 
-    // Ensure at least one atlas exists
     {
         std::lock_guard lock(_allocatedAtlassesMutex);
         if (_allocatedAtlases.size() == 0) {
@@ -320,11 +295,9 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
     int newGlyphsQueued = 0;
     int duplicatesSkipped = 0;
 
-    // Collect updates locally to avoid holding multiple locks
     std::vector<PendingAtlasUpdate> localUpdates;
 
     for (const auto& codePoint : codepointsWithoutDuplicates) {
-        // Check duplicate for this scale
         {
             std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
             auto scaleIt = _glyphPositionsAtSizes.find(scale);
@@ -332,9 +305,9 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
                 auto codepointIt = scaleIt->second.find(codePoint);
                 if (codepointIt != scaleIt->second.end()) {
                     duplicatesSkipped++;
-#if _DEBUG
-                    LOG("[", getTimestamp(), "] ATLAS: Skipping already baked glyph - codepoint ", codePoint, " at scale ", scale);
-#endif
+                    #if _DEBUG
+                        LOG("[", getTimestamp(), "] ATLAS: Skipping already baked glyph - codepoint ", codePoint, " at scale ", scale);
+                    #endif
                     continue;
                 }
             }
@@ -342,9 +315,9 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
 
         Glyph* glyph = Glyph::GetGlyph(&_info, scale, codePoint, _ascent);
         if (!glyph) {
-#if _DEBUG
-            LOG("[", getTimestamp(), "] ATLAS: Failed to get glyph for codepoint ", codePoint, " at scale ", scale);
-#endif
+            #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: Failed to get glyph for codepoint ", codePoint, " at scale ", scale);
+            #endif
             continue;
         }
 
@@ -352,7 +325,6 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
         ImVec2 atlasPosition;
         bool positionFound = false;
 
-        // Find a spot in an atlas
         {
             std::lock_guard<std::mutex> atlasLock(_allocatedAtlassesMutex);
             while (!positionFound && atlasId < _allocatedAtlases.size()) {
@@ -385,13 +357,12 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
                 atlas->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), 0) });
                 _allocatedAtlases.push_back(atlas);
                 atlasPosition = ImVec2(0, 0);
-#if _DEBUG
-                LOG("[", getTimestamp(), "] ATLAS: Created new atlas with id ", atlasId);
-#endif
+                #if _DEBUG
+                    LOG("[", getTimestamp(), "] ATLAS: Created new atlas with id ", atlasId);
+                #endif
             }
-        } // atlas lock released
+        }
 
-        // Record position in the positions map
         {
             std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
             _glyphPositionsAtSizes[scale][codePoint] =
@@ -404,22 +375,21 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
         }
     }
 
-    // Push updates once, under updates mutex only
     if (!localUpdates.empty()) {
         std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
         for (auto& u : localUpdates) pendingAtlasUpdates.push_back(u);
-#if _DEBUG
-        LOG("[", getTimestamp(), "] ATLAS: *** QUEUED ", localUpdates.size(),
-            " UPDATES *** (queue size: ", pendingAtlasUpdates.size(), ")");
-#endif
+        #if _DEBUG
+                LOG("[", getTimestamp(), "] ATLAS: *** QUEUED ", localUpdates.size(),
+                    " UPDATES *** (queue size: ", pendingAtlasUpdates.size(), ")");
+        #endif
     }
 
-#if _DEBUG
-    if (newGlyphsQueued > 0 || duplicatesSkipped > 0) {
-        LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize complete - queued: ", newGlyphsQueued,
-            ", skipped duplicates: ", duplicatesSkipped);
-    }
-#endif
+    #if _DEBUG
+        if (newGlyphsQueued > 0 || duplicatesSkipped > 0) {
+            LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize complete - queued: ", newGlyphsQueued,
+                ", skipped duplicates: ", duplicatesSkipped);
+        }
+    #endif
 }
 
 
@@ -428,7 +398,6 @@ void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos,
 
     float scale = getCachedScale(fontSize);
 
-    // 1) Build a value-copy list of glyph positions under positions lock
     std::vector<GlyphPositionDefinition> definitions;
     {
         std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
@@ -441,14 +410,14 @@ void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos,
             if (scaleIt != _glyphPositionsAtSizes.end()) {
                 auto it = scaleIt->second.find(codePoint);
                 if (it != scaleIt->second.end()) {
-                    definitions.push_back(it->second); // copy by value
+                    definitions.push_back(it->second);
                 }
             }
         }
     }
     if (definitions.empty()) return;
 
-    // 2) Draw using atlas lock only
+
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 currentPos(pos.x - definitions.front().glyph->getLeftSideBearing(), pos.y);
 
