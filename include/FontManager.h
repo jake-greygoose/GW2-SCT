@@ -111,11 +111,15 @@ namespace GW2_SCT {
             Glyph* glyph;
         };
 
+        // POSITIONS map — now protected by a dedicated mutex
         std::unordered_map<float, std::unordered_map<int, GlyphPositionDefinition>> _glyphPositionsAtSizes;
+        static std::mutex _glyphPositionsMutex;
 
+        // ATLAS containers & locks
         static std::vector<GlyphAtlas*> _allocatedAtlases;
         static std::mutex _allocatedAtlassesMutex;
 
+        // PENDING updates & lock
         static std::vector<PendingAtlasUpdate> pendingAtlasUpdates;
         static std::mutex pendingAtlasUpdatesMutex;
     };

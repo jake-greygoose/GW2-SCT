@@ -2,6 +2,17 @@
 #include "Common.h"
 #include <thread>
 
+static std::thread::id g_renderThreadId; // set during Present()
+
+void GW2_SCT::TextureD3D11::MarkRenderThread() {
+    g_renderThreadId = std::this_thread::get_id();
+}
+
+bool GW2_SCT::TextureD3D11::IsOnRenderThread() {
+    return g_renderThreadId != std::thread::id{} &&
+        std::this_thread::get_id() == g_renderThreadId;
+}
+
 GW2_SCT::TextureD3D11::TextureD3D11(int width, int height, unsigned char* data) : width(width), height(height) {
     if (data == nullptr) {
         this->data = nullptr;
@@ -25,9 +36,9 @@ GW2_SCT::TextureD3D11::~TextureD3D11() {
 }
 
 bool GW2_SCT::TextureD3D11::create() {
-    static std::thread::id mainThreadId = std::this_thread::get_id();
-    if (std::this_thread::get_id() != mainThreadId) {
-        LOG("ERROR: D3D11 texture creation attempted from wrong thread - AMD will crash!");
+    // Enforce render thread only
+    if (!IsOnRenderThread()) {
+        LOG("ERROR: D3D11 texture creation attempted off render thread - will defer");
         return false;
     }
 
@@ -41,7 +52,7 @@ bool GW2_SCT::TextureD3D11::create() {
         return true;
     }
 
-    LOG("Creating D3D11 texture on main thread - size: ", width, "x", height);
+    LOG("Creating D3D11 texture on render thread - size: ", width, "x", height);
 
     HRESULT res;
     D3D11_TEXTURE2D_DESC desc = {};
@@ -116,8 +127,8 @@ bool GW2_SCT::ImmutableTextureD3D11::internalCreate() {
     return create();
 }
 
-GW2_SCT::MutableTextureD3D11::MutableTextureD3D11(int width, int height)
-    : TextureD3D11(width, height, nullptr), MutableTexture(width, height) {
+GW2_SCT::MutableTextureD3D11::MutableTextureD3D11(int w, int h)
+    : TextureD3D11(w, h, nullptr), MutableTexture(w, h) {
 }
 
 GW2_SCT::MutableTextureD3D11::~MutableTextureD3D11() {
@@ -126,7 +137,7 @@ GW2_SCT::MutableTextureD3D11::~MutableTextureD3D11() {
 
 void GW2_SCT::MutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) {
     if (_stagingChanged && d3D11Context != nullptr && _texture11View != nullptr) {
-        std::lock_guard lock(_stagingMutex);
+        std::lock_guard<std::mutex> lock(_stagingMutex);
         if (_stagingChanged) {
             d3D11Context->CopyResource(_texture11, _texture11Staging);
             _stagingChanged = false;
@@ -135,24 +146,13 @@ void GW2_SCT::MutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 
     if (_texture11View != nullptr) {
         ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
     }
-    else {
-        LOG("WARNING: Attempting to draw mutable texture with null texture view");
-    }
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalCreate() {
-    LOG("MutableTextureD3D11: Creating main texture");
     if (!create()) return false;
 
-    if (d3Device11 == nullptr) return false;
+    if (_texture11Staging != nullptr) _texture11Staging->Release();
 
-    if (_texture11Staging != nullptr) {
-        LOG("MutableTextureD3D11: Staging texture already created, skipping recreation");
-        return true;
-    }
-
-    LOG("MutableTextureD3D11: Creating staging texture");
-    HRESULT res;
     D3D11_TEXTURE2D_DESC desc = {};
     desc.Width = width;
     desc.Height = height;
@@ -164,35 +164,36 @@ bool GW2_SCT::MutableTextureD3D11::internalCreate() {
     desc.BindFlags = 0;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE | D3D11_CPU_ACCESS_READ;
 
+    HRESULT res;
     if (FAILED(res = d3Device11->CreateTexture2D(&desc, NULL, &_texture11Staging))) {
         LOG("d3Device11->CreateTexture2D (staging) failed: " + std::to_string(res));
         return false;
     }
-
-    LOG("MutableTextureD3D11: Staging texture created successfully");
     return true;
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalStartUpdate(ImVec2 pos, ImVec2 size, UpdateData* out) {
-    if (d3D11Context == nullptr || _texture11Staging == nullptr) return false;
+    if (_texture11Staging == nullptr) return false;
+    if (d3D11Context == nullptr) return false;
 
-    HRESULT res;
     D3D11_MAPPED_SUBRESOURCE mapped;
-    std::lock_guard lock(_stagingMutex);
-    if (FAILED(res = d3D11Context->Map(_texture11Staging, 0, D3D11_MAP_READ_WRITE, 0, &mapped))) {
-        LOG("Could not map staging texture: " + std::to_string(res));
+    HRESULT res = d3D11Context->Map(_texture11Staging, 0, D3D11_MAP_WRITE, 0, &mapped);
+    if (FAILED(res)) {
+        LOG("Failed to map staging texture for update: " + std::to_string(res));
         return false;
     }
-    out->data = (unsigned char*)mapped.pData + static_cast<int>(pos.y) * mapped.RowPitch + static_cast<int>(pos.x) * 4;
-    out->rowPitch = mapped.RowPitch;
+
+    std::lock_guard<std::mutex> lock(_stagingMutex);
+    out->id = 0;
+    out->data = (unsigned char*)mapped.pData + (size_t)pos.y * mapped.RowPitch + (size_t)pos.x * 4;
+    out->rowPitch = (int)mapped.RowPitch;
     out->bytePerPixel = 4;
+    _stagingChanged = true;
     return true;
 }
 
 bool GW2_SCT::MutableTextureD3D11::internalEndUpdate() {
-    if (d3D11Context == nullptr || _texture11Staging == nullptr) return false;
-
+    if (d3D11Context == nullptr) return false;
     d3D11Context->Unmap(_texture11Staging, 0);
-    _stagingChanged = true;
     return true;
 }

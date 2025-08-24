@@ -3,60 +3,74 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include <vector>
+#include <map>
+#include <chrono>
 #include "Common.h"
 #include "Options.h"
 
 namespace GW2_SCT {
-	struct MessageData {
-		char* skillName = nullptr;
-		char* entityName = nullptr;
-		char* otherEntityName = nullptr;
-		int32_t value = 0;
-		uint32_t overstack_value = 0;
-		int32_t buffValue = 0;
-		uint32_t skillId = 0;
-		uint64_t entityId = 0;
-		uint32_t entityProf = 0;
-		uint64_t otherEntityId = 0;
-		uint32_t otherEntityProf = 0;
-		bool hasToBeFiltered = false;
-	public:
-		MessageData(cbtevent* ev, ag* entity, ag * otherEntity, const char* skillname);
-		MessageData(cbtevent1* ev, ag* entity, ag * otherEntity, const char* skillname);
+
+    struct MessageData {
+        char* skillName = nullptr;
+        char* entityName = nullptr;
+        char* otherEntityName = nullptr;
+        int32_t value = 0;
+        uint32_t overstack_value = 0;
+        int32_t buffValue = 0;
+        uint32_t skillId = 0;
+        uint64_t entityId = 0;
+        uint32_t entityProf = 0;
+        uint64_t otherEntityId = 0;
+        uint32_t otherEntityProf = 0;
+        bool hasToBeFiltered = false;
+
+    public:
+        MessageData(cbtevent* ev, ag* entity, ag* otherEntity, const char* skillname);
+        MessageData(cbtevent1* ev, ag* entity, ag* otherEntity, const char* skillname);
 #ifdef _DEBUG
-		MessageData(int32_t value, int32_t buffValue, uint32_t overstack_value, uint32_t skillId, ag* entity, ag* otherEntity, const char* skillname);
-#endif // _DEBUG
-		MessageData() {};
-		MessageData(const MessageData& toCopy);
-	};
+        MessageData(int32_t value, int32_t buffValue, uint32_t overstack_value, uint32_t skillId, ag* entity, ag* otherEntity, const char* skillname);
+#endif
+        MessageData() {}
+        MessageData(const MessageData& toCopy);  // deep copy (char* fields duplicated)
+        ~MessageData();                          // frees char* fields
+    };
 
-	struct MessageHandler {
-		std::vector<std::function<bool(std::vector<const MessageData*>&, std::vector<const MessageData*>&)>> tryToCombineWithFunctions;
-		std::map<char, std::function<std::string(std::vector<const MessageData*>&)>> parameterToStringFunctions;
-		MessageHandler(
-			std::vector<std::function<bool(std::vector<const MessageData*>&, std::vector<const MessageData*>&)>> tryToCombineWithFunctions,
-			std::map<char, std::function<std::string(std::vector<const MessageData*>&)>> parameterToStringFunctions
-		);
-	};
+    // Const view used by handler functions
+    using DataVecView = std::vector<std::shared_ptr<const MessageData>>;
 
-	class EventMessage {
-	public:
-		EventMessage(MessageCategory category, MessageType type, cbtevent* ev, ag* src, ag* dst, char* skillname);
-		EventMessage(MessageCategory category, MessageType type, cbtevent1* ev, ag* src, ag* dst, char* skillname);
-		EventMessage(MessageCategory category, MessageType type, std::shared_ptr<MessageData>);
-		~EventMessage();
-		std::string getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt);
-		std::shared_ptr<MessageData> getCopyOfFirstData();
-		MessageCategory getCategory();
-		MessageType getType();
-		bool hasToBeFiltered();
-		bool tryToCombineWith(std::shared_ptr<EventMessage> m);
-		std::chrono::system_clock::time_point getTimepoint();
-	private:
-		std::chrono::system_clock::time_point timepoint;
-		MessageCategory category;
-		MessageType type;
-		std::vector<const MessageData*> messageDatas;
-		static std::map<MessageCategory, std::map<MessageType, MessageHandler>> messageHandlers;
-	};
-}
+    struct MessageHandler {
+        std::vector<std::function<bool(const DataVecView&, const DataVecView&)>> tryToCombineWithFunctions;
+        std::map<char, std::function<std::string(const DataVecView&)>> parameterToStringFunctions;
+
+        MessageHandler(
+            std::vector<std::function<bool(const DataVecView&, const DataVecView&)>> tryToCombineWithFunctions,
+            std::map<char, std::function<std::string(const DataVecView&)>> parameterToStringFunctions
+        );
+    };
+
+    class EventMessage {
+    public:
+        EventMessage(MessageCategory category, MessageType type, cbtevent* ev, ag* src, ag* dst, char* skillname);
+        EventMessage(MessageCategory category, MessageType type, cbtevent1* ev, ag* src, ag* dst, char* skillname);
+        EventMessage(MessageCategory category, MessageType type, std::shared_ptr<MessageData>);
+
+        std::string getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt);
+        std::shared_ptr<MessageData> getCopyOfFirstData();
+        MessageCategory getCategory();
+        MessageType getType();
+        bool hasToBeFiltered();
+        bool tryToCombineWith(std::shared_ptr<EventMessage> m);
+        std::chrono::system_clock::time_point getTimepoint();
+
+    private:
+        std::chrono::system_clock::time_point timepoint;
+        MessageCategory category;
+        MessageType type;
+        // OWNED data (no dangling pointers)
+        std::vector<std::shared_ptr<MessageData>> messageDatas;
+
+        static std::map<MessageCategory, std::map<MessageType, MessageHandler>> messageHandlers;
+    };
+
+} // namespace GW2_SCT

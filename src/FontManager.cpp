@@ -110,7 +110,9 @@ GW2_SCT::Glyph::Glyph(const stbtt_fontinfo* font, float scale, int codepoint, in
     _lsb *= _scale;
 }
 
-GW2_SCT::Glyph::~Glyph() { if (_bitmap == nullptr) free(_bitmap); }
+GW2_SCT::Glyph::~Glyph() {
+    if (_bitmap != nullptr) free(_bitmap);
+}
 
 float GW2_SCT::Glyph::getRealAdvanceAndKerning(int nextCodepoint) {
     auto it = _advanceAndKerningCache.find(nextCodepoint);
@@ -124,6 +126,7 @@ float GW2_SCT::Glyph::getRealAdvanceAndKerning(int nextCodepoint) {
 
 std::vector<GW2_SCT::FontType::GlyphAtlas*> GW2_SCT::FontType::_allocatedAtlases;
 std::mutex GW2_SCT::FontType::_allocatedAtlassesMutex;
+std::mutex GW2_SCT::FontType::_glyphPositionsMutex;
 
 std::vector<GW2_SCT::FontType::PendingAtlasUpdate> GW2_SCT::FontType::pendingAtlasUpdates;
 std::mutex GW2_SCT::FontType::pendingAtlasUpdatesMutex;
@@ -142,12 +145,11 @@ void GW2_SCT::FontType::ensureAtlasCreation() {
     size_t atlasId = 0;
     std::lock_guard lock(_allocatedAtlassesMutex);
 
-    GW2_SCT::Texture::ProcessPendingCreations();
-
+    // DO NOT create here. Creations are handled in Texture::BeginPresentCycle().
 
     while (atlasId < _allocatedAtlases.size()) {
         if (_allocatedAtlases[atlasId]->texture != nullptr) {
-            _allocatedAtlases[atlasId]->texture->ensureCreation();
+            _allocatedAtlases[atlasId]->texture->ensureCreation(); // just queue it
         }
         atlasId++;
     }
@@ -168,6 +170,7 @@ void GW2_SCT::FontType::cleanup() {
 void GW2_SCT::FontType::ProcessPendingAtlasUpdates() {
     std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
     std::lock_guard<std::mutex> atlasLock(_allocatedAtlassesMutex);
+    if (!GW2_SCT::Texture::IsInPresentCycle()) return;
 
     if (pendingAtlasUpdates.empty()) return;
 
@@ -300,43 +303,48 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
     float scale = getCachedScale(fontSize);
     std::vector<int> codepointsWithoutDuplicates = getCodepointsWithoutDuplicates(text);
 
-    #if _DEBUG
-        LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize called for scale ", scale, " (fontSize ", fontSize, ") with ", codepointsWithoutDuplicates.size(), " codepoints");
-    #endif
+#if _DEBUG
+    LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize called for scale ", scale, " (fontSize ", fontSize, ") with ", codepointsWithoutDuplicates.size(), " codepoints");
+#endif
 
-    std::lock_guard lock(_allocatedAtlassesMutex);
-    if (_allocatedAtlases.size() == 0) {
-        LOG("Creating atlas with id 0 in advance");
-        GlyphAtlas* atlas = new GlyphAtlas();
-        _allocatedAtlases.push_back(atlas);
+    // Ensure at least one atlas exists
+    {
+        std::lock_guard lock(_allocatedAtlassesMutex);
+        if (_allocatedAtlases.size() == 0) {
+            LOG("Creating atlas with id 0 in advance");
+            GlyphAtlas* atlas = new GlyphAtlas();
+            _allocatedAtlases.push_back(atlas);
+        }
     }
 
     int newGlyphsQueued = 0;
     int duplicatesSkipped = 0;
 
-    for (const auto& codePoint : codepointsWithoutDuplicates) {
-        // Check if this glyph at this scale already exists
-        auto scaleIt = _glyphPositionsAtSizes.find(scale);
-        if (scaleIt != _glyphPositionsAtSizes.end()) {
-            auto codepointIt = scaleIt->second.find(codePoint);
-            if (codepointIt != scaleIt->second.end()) {
-                // Already exists for this scale, skip
-                duplicatesSkipped++;
+    // Collect updates locally to avoid holding multiple locks
+    std::vector<PendingAtlasUpdate> localUpdates;
 
-                #if _DEBUG
+    for (const auto& codePoint : codepointsWithoutDuplicates) {
+        // Check duplicate for this scale
+        {
+            std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
+            auto scaleIt = _glyphPositionsAtSizes.find(scale);
+            if (scaleIt != _glyphPositionsAtSizes.end()) {
+                auto codepointIt = scaleIt->second.find(codePoint);
+                if (codepointIt != scaleIt->second.end()) {
+                    duplicatesSkipped++;
+#if _DEBUG
                     LOG("[", getTimestamp(), "] ATLAS: Skipping already baked glyph - codepoint ", codePoint, " at scale ", scale);
-                #endif           
-                continue;
+#endif
+                    continue;
+                }
             }
         }
 
         Glyph* glyph = Glyph::GetGlyph(&_info, scale, codePoint, _ascent);
-        if (glyph == nullptr) {
-            
-            #if _DEBUG
-                LOG("[", getTimestamp(), "] ATLAS: Failed to get glyph for codepoint ", codePoint, " at scale ", scale);
-            #endif
-            
+        if (!glyph) {
+#if _DEBUG
+            LOG("[", getTimestamp(), "] ATLAS: Failed to get glyph for codepoint ", codePoint, " at scale ", scale);
+#endif
             continue;
         }
 
@@ -344,108 +352,136 @@ void GW2_SCT::FontType::bakeGlyphsAtSize(std::string text, float fontSize) {
         ImVec2 atlasPosition;
         bool positionFound = false;
 
-        while (!positionFound && atlasId < _allocatedAtlases.size()) {
-            for (auto& lineDefinition : _allocatedAtlases[atlasId]->linesWithSpaces) {
-                if (fontSize <= lineDefinition.lineHeight && lineDefinition.nextGlyphPosition.x + glyph->getWidth() < FONT_TEXTURE_SIZE) {
-                    positionFound = true;
-                    atlasPosition = lineDefinition.nextGlyphPosition;
-                    lineDefinition.nextGlyphPosition.x += glyph->getWidth();
-                    break;
+        // Find a spot in an atlas
+        {
+            std::lock_guard<std::mutex> atlasLock(_allocatedAtlassesMutex);
+            while (!positionFound && atlasId < _allocatedAtlases.size()) {
+                for (auto& lineDefinition : _allocatedAtlases[atlasId]->linesWithSpaces) {
+                    if (fontSize <= lineDefinition.lineHeight &&
+                        lineDefinition.nextGlyphPosition.x + glyph->getWidth() < FONT_TEXTURE_SIZE) {
+                        positionFound = true;
+                        atlasPosition = lineDefinition.nextGlyphPosition;
+                        lineDefinition.nextGlyphPosition.x += glyph->getWidth();
+                        break;
+                    }
+                }
+                if (!positionFound) {
+                    float nextYAfterLastLine = _allocatedAtlases[atlasId]->linesWithSpaces.empty()
+                        ? 0.f
+                        : _allocatedAtlases[atlasId]->linesWithSpaces.back().nextGlyphPosition.y +
+                        _allocatedAtlases[atlasId]->linesWithSpaces.back().lineHeight;
+                    if (nextYAfterLastLine + fontSize < FONT_TEXTURE_SIZE) {
+                        positionFound = true;
+                        _allocatedAtlases[atlasId]->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), nextYAfterLastLine) });
+                        atlasPosition = ImVec2(0, nextYAfterLastLine);
+                    }
+                    else {
+                        atlasId++;
+                    }
                 }
             }
-            if (!positionFound) {
-                float nextYAfterLastLine;
-                if (_allocatedAtlases[atlasId]->linesWithSpaces.size() == 0) {
-                    nextYAfterLastLine = 0;
-                }
-                else {
-                    auto& lastLine = _allocatedAtlases[atlasId]->linesWithSpaces.back();
-                    nextYAfterLastLine = lastLine.nextGlyphPosition.y + lastLine.lineHeight;
-                }
-                if (nextYAfterLastLine + fontSize < FONT_TEXTURE_SIZE) {
-                    positionFound = true;
-                    _allocatedAtlases[atlasId]->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), nextYAfterLastLine) });
-                    atlasPosition = ImVec2(0, nextYAfterLastLine);
-                }
-                else {
-                    atlasId++;
-                }
-            }
-        }
-        if (atlasId == _allocatedAtlases.size()) {
-            GlyphAtlas* atlas = new GlyphAtlas();
-            atlas->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), 0) });
-            _allocatedAtlases.push_back(atlas);
-            atlasPosition = ImVec2(0, 0);
-            
-            #if _DEBUG
+            if (atlasId == _allocatedAtlases.size()) {
+                GlyphAtlas* atlas = new GlyphAtlas();
+                atlas->linesWithSpaces.push_back({ fontSize, ImVec2(glyph->getWidth(), 0) });
+                _allocatedAtlases.push_back(atlas);
+                atlasPosition = ImVec2(0, 0);
+#if _DEBUG
                 LOG("[", getTimestamp(), "] ATLAS: Created new atlas with id ", atlasId);
-            #endif
+#endif
+            }
+        } // atlas lock released
+
+        // Record position in the positions map
+        {
+            std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
+            _glyphPositionsAtSizes[scale][codePoint] =
+                GlyphPositionDefinition(atlasId, (int)atlasPosition.x, (int)atlasPosition.y, glyph);
         }
 
-        // Set position BEFORE queuing update to prevent duplicates
-        _glyphPositionsAtSizes[scale][codePoint] = GlyphPositionDefinition(atlasId, atlasPosition.x, atlasPosition.y, glyph);
-
-        if (codePoint != 32) { // Skip space character
-            // Queue the atlas update for safe processing later
-            std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
-            pendingAtlasUpdates.push_back({
-                scale, codePoint, atlasId, atlasPosition, glyph
-                });
+        if (codePoint != 32) { // skip space
+            localUpdates.push_back({ scale, codePoint, atlasId, atlasPosition, glyph });
             newGlyphsQueued++;
-
-            #if _DEBUG
-                LOG("[", getTimestamp(), "] ATLAS: *** QUEUED UPDATE *** for codepoint ", codePoint, " at scale ", scale, " (queue size: ", pendingAtlasUpdates.size(), ")");
-            #endif
         }
     }
 
-    #if _DEBUG
-        if (newGlyphsQueued > 0 || duplicatesSkipped > 0) {
-            LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize complete - queued: ", newGlyphsQueued, ", skipped duplicates: ", duplicatesSkipped);
-        }
-    #endif
+    // Push updates once, under updates mutex only
+    if (!localUpdates.empty()) {
+        std::lock_guard<std::mutex> updateLock(pendingAtlasUpdatesMutex);
+        for (auto& u : localUpdates) pendingAtlasUpdates.push_back(u);
+#if _DEBUG
+        LOG("[", getTimestamp(), "] ATLAS: *** QUEUED ", localUpdates.size(),
+            " UPDATES *** (queue size: ", pendingAtlasUpdates.size(), ")");
+#endif
+    }
+
+#if _DEBUG
+    if (newGlyphsQueued > 0 || duplicatesSkipped > 0) {
+        LOG("[", getTimestamp(), "] ATLAS: bakeGlyphsAtSize complete - queued: ", newGlyphsQueued,
+            ", skipped duplicates: ", duplicatesSkipped);
+    }
+#endif
 }
+
 
 void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos, ImU32 color) {
     if (text.size() == 0) return;
-    std::vector<GlyphPositionDefinition*> definitions;
+
     float scale = getCachedScale(fontSize);
-    for (size_t i = 0; i < text.size();) {
-        int codePointLength = getCodepointLength(text, i);
-        int codePoint = getCodepointOfLength(text, i, codePointLength);
-        i += codePointLength;
-        auto it = _glyphPositionsAtSizes[scale].find(codePoint);
-        if (it != _glyphPositionsAtSizes[scale].end()) {
-            definitions.push_back(&it->second);
+
+    // 1) Build a value-copy list of glyph positions under positions lock
+    std::vector<GlyphPositionDefinition> definitions;
+    {
+        std::lock_guard<std::mutex> gpLock(_glyphPositionsMutex);
+        for (size_t i = 0; i < text.size();) {
+            int codePointLength = getCodepointLength(text, i);
+            int codePoint = getCodepointOfLength(text, i, codePointLength);
+            i += codePointLength;
+
+            auto scaleIt = _glyphPositionsAtSizes.find(scale);
+            if (scaleIt != _glyphPositionsAtSizes.end()) {
+                auto it = scaleIt->second.find(codePoint);
+                if (it != scaleIt->second.end()) {
+                    definitions.push_back(it->second); // copy by value
+                }
+            }
         }
     }
-    if (definitions.size() == 0) return;
+    if (definitions.empty()) return;
+
+    // 2) Draw using atlas lock only
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImVec2 currentPos(pos.x - definitions.front()->glyph->getLeftSideBearing(), pos.y);
+    ImVec2 currentPos(pos.x - definitions.front().glyph->getLeftSideBearing(), pos.y);
+
     std::lock_guard lock(_allocatedAtlassesMutex);
+
     if (isCachedScaleExactForSize(fontSize)) {
         for (size_t i = 0; i < definitions.size(); i++) {
-            GlyphPositionDefinition* def = definitions[i];
-            if (_allocatedAtlases[def->atlasID]->texture != nullptr) {
-                ImVec2 thisCharPos(ceil(currentPos.x + def->glyph->getLeftSideBearing()), ceil(currentPos.y + def->glyph->getOffsetTop()));
-                _allocatedAtlases[def->atlasID]->texture->draw(thisCharPos, def->getSize(), def->uvStart, def->uvEnd, color);
-                currentPos.x += def->glyph->getAdvanceAndKerning(i + 1 >= definitions.size() ? 0 : definitions[i + 1]->glyph->getCodepoint());
+            auto& def = definitions[i];
+            if (_allocatedAtlases[def.atlasID]->texture != nullptr) {
+                ImVec2 thisCharPos(ceil(currentPos.x + def.glyph->getLeftSideBearing()),
+                    ceil(currentPos.y + def.glyph->getOffsetTop()));
+                _allocatedAtlases[def.atlasID]->texture->draw(thisCharPos, def.getSize(), def.uvStart, def.uvEnd, color);
+                currentPos.x += def.glyph->getAdvanceAndKerning(i + 1 >= definitions.size()
+                    ? 0 : definitions[i + 1].glyph->getCodepoint());
             }
         }
     }
     else {
         float realScaleFraction = getRealScale(fontSize) / scale;
         for (size_t i = 0; i < definitions.size(); i++) {
-            GlyphPositionDefinition* def = definitions[i];
-            if (_allocatedAtlases[def->atlasID]->texture != nullptr) {
-                ImVec2 thisCharPos(ceil(currentPos.x + realScaleFraction * def->glyph->getLeftSideBearing()), ceil(currentPos.y + realScaleFraction * def->glyph->getOffsetTop()));
-                _allocatedAtlases[def->atlasID]->texture->draw(thisCharPos, def->getSize(realScaleFraction), def->uvStart, def->uvEnd, color);
-                currentPos.x += realScaleFraction * def->glyph->getAdvanceAndKerning(i + 1 >= definitions.size() ? 0 : definitions[i + 1]->glyph->getCodepoint());
+            auto& def = definitions[i];
+            if (_allocatedAtlases[def.atlasID]->texture != nullptr) {
+                ImVec2 thisCharPos(ceil(currentPos.x + realScaleFraction * def.glyph->getLeftSideBearing()),
+                    ceil(currentPos.y + realScaleFraction * def.glyph->getOffsetTop()));
+                _allocatedAtlases[def.atlasID]->texture->draw(thisCharPos, def.getSize(realScaleFraction),
+                    def.uvStart, def.uvEnd, color);
+                currentPos.x += realScaleFraction * def.glyph->getAdvanceAndKerning(i + 1 >= definitions.size()
+                    ? 0 : definitions[i + 1].glyph->getCodepoint());
             }
         }
     }
 }
+
 
 #if _DEBUG
 void GW2_SCT::FontType::drawAtlas() {
