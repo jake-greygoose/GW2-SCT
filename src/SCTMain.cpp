@@ -39,20 +39,41 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	LOG("Running arcvers: ", arcvers);
 	LOG("Running sct version: ", SCT_VERSION_STRING, " / ", __DATE__, " / ", __TIME__);
 
-	Options::profile.onAssign([=](std::shared_ptr<profile_options_struct> oldProfile, std::shared_ptr<profile_options_struct> newProfile) {
-		if (currentScrollAreaPushBackCallbackId >= 0) {
-			oldProfile->scrollAreaOptions.removeOnPushBackCallback(currentScrollAreaPushBackCallbackId);
-		}
-		if (currentScrollAreaEraseCallbackId >= 0) {
-			oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
-		}
-		currentScrollAreaPushBackCallbackId = newProfile->scrollAreaOptions.addOnPushBackCallback([=](const std::shared_ptr<scroll_area_options_struct>& newVal) {
-			scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
-			});
-		currentScrollAreaEraseCallbackId = newProfile->scrollAreaOptions.addOnEraseCallback([=](int pos) {
-			scrollAreas.erase(std::begin(scrollAreas) + pos);
-			});
+	Options::profile.onAssign(
+		[this](std::shared_ptr<profile_options_struct> oldProfile,
+			std::shared_ptr<profile_options_struct> newProfile)
+		{
+			if (oldProfile) {
+				if (currentScrollAreaPushBackCallbackId >= 0) {
+					oldProfile->scrollAreaOptions.removeOnPushBackCallback(currentScrollAreaPushBackCallbackId);
+					currentScrollAreaPushBackCallbackId = -1;
+				}
+				if (currentScrollAreaEraseCallbackId >= 0) {
+					oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
+					currentScrollAreaEraseCallbackId = -1;
+				}
+			}
+
+			scrollAreas.clear();
+			for (const auto& saOpts : newProfile->scrollAreaOptions) {
+				scrollAreas.push_back(std::make_shared<ScrollArea>(saOpts));
+			}
+
+			currentScrollAreaPushBackCallbackId =
+				newProfile->scrollAreaOptions.addOnPushBackCallback(
+					[this](const std::shared_ptr<scroll_area_options_struct>& newVal) {
+						scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
+					});
+
+			currentScrollAreaEraseCallbackId =
+				newProfile->scrollAreaOptions.addOnEraseCallback(
+					[this](int pos) {
+						if (pos >= 0 && pos < static_cast<int>(scrollAreas.size())) {
+							scrollAreas.erase(std::begin(scrollAreas) + pos);
+						}
+					});
 		});
+
 	LOG("Set up options changing hook");
 	SkillIconManager::init();
 	LOG("Started skill icon manager");
@@ -60,9 +81,13 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	LOG("Started font manager");
 	Options::load();
 	LOG("Loaded options");
-	for (const auto& scrollAreaOptions : Options::get()->scrollAreaOptions)
-		scrollAreas.push_back(std::make_shared<ScrollArea>(scrollAreaOptions));
-	LOG("Created ", Options::get()->scrollAreaOptions.size(), " scroll areas");
+
+	if (scrollAreas.empty()) {
+		for (const auto& saOpts : Options::get()->scrollAreaOptions) {
+			scrollAreas.push_back(std::make_shared<ScrollArea>(saOpts));
+		}
+	}
+	LOG("Created ", Options::get()->scrollAreaOptions.size(), " scroll areas")
 
 	if (d3Device11 != nullptr) {
 		if (d3d11SwapChain != nullptr) {
