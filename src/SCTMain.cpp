@@ -263,9 +263,10 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 					if (ev1->value > 0) {
 						if (ev1->overstack_value != 0) {
 							types.push_back(MessageType::SHIELD_RECEIVE);
-							// Don't modify ev1->value here
 						}
-						types.push_back(MessageType::HEAL);  // This will only trigger for actual heals
+						else {
+							types.push_back(MessageType::HEAL);
+						}
 					}
 					else {
 						if (ev1->overstack_value > 0) {
