@@ -254,7 +254,6 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 							case 737: types.push_back(MessageType::BURNING); break;
 							case 723: types.push_back(MessageType::POISON); break;
 							case 861: types.push_back(MessageType::CONFUSION); break;
-							case 873: types.push_back(MessageType::RETALIATION); break;
 							case 19426: types.push_back(MessageType::TORMENT); break;
 							default: types.push_back(MessageType::DOT); break;
 							}
