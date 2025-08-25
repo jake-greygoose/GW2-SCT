@@ -127,3 +127,66 @@ bool floatEqual(float a, float b) {
 	float diff = a - b;
 	return (diff < std::numeric_limits<float>::epsilon()) && (-diff < std::numeric_limits<float>::epsilon());
 }
+
+std::string AbbreviateSkillName(const std::string& skillName) {
+	if (skillName.find_first_of(" -") == std::string::npos) {
+		return skillName;
+	}
+
+	std::string result;
+	bool nextIsFirst = true;
+
+	for (char c : skillName) {
+		if (std::isalpha(c)) {
+			if (nextIsFirst) {
+				result += c;
+				nextIsFirst = false;
+			}
+		}
+		else if (c == ' ' || c == '-') {
+			nextIsFirst = true;
+		}
+	}
+
+	return result;
+}
+
+std::string ShortenNumber(double number, int precision = 0) {
+	// Handle invalid numbers
+	if (std::isnan(number) || std::isinf(number)) {
+		return "0";
+	}
+
+	// Create format string for precision
+	std::ostringstream formatStream;
+	formatStream << "%." << precision << "f";
+	std::string format = formatStream.str();
+
+	char buffer[32];
+
+	if (number >= 1e12) {
+		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e12);
+		return std::string(buffer) + "T";
+	}
+	else if (number >= 1e9) {
+		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e9);
+		return std::string(buffer) + "G";
+	}
+	else if (number >= 1e6) {
+		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e6);
+		return std::string(buffer) + "M";
+	}
+	else if (number >= 1e3) {
+		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e3);
+		return std::string(buffer) + "k";
+	}
+	else {
+		if (precision == 0) {
+			return std::to_string(static_cast<int>(number));
+		}
+		else {
+			snprintf(buffer, sizeof(buffer), format.c_str(), number);
+			return std::string(buffer);
+		}
+	}
+}

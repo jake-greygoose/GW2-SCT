@@ -95,6 +95,9 @@ extern char* arcvers;
 
 const float defaultFontSize = 22.f;
 
+extern std::string AbbreviateSkillName(const std::string& skillName);
+extern std::string ShortenNumber(double number, int precision = 0);
+
 /* combat event */
 typedef struct cbtevent {
 	uint64_t time; /* timegettime() at time of event */
