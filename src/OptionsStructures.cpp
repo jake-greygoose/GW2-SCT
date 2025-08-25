@@ -44,6 +44,17 @@ namespace GW2_SCT {
         }
     }
 
+    int scrollDirectionToInt(ScrollDirection type) {
+        return static_cast<int>(type);
+    }
+    ScrollDirection intToScrollDirection(int i) {
+        switch (i) {
+        case 1: return ScrollDirection::UP;
+        case 0:
+        default: return ScrollDirection::DOWN;
+        }
+    }
+
 } // namespace GW2_SCT
 
 // ----------------------------------------------
@@ -51,9 +62,6 @@ namespace GW2_SCT {
 // ----------------------------------------------
 namespace nlohmann {
 
-    // Already have ObservableValue<T> somewhere above — keep that.
-
-    // ObservableVector<T> — works for T and std::shared_ptr<T> thanks to your header serializer
     template <typename T>
     struct adl_serializer<ObservableVector<T>> {
         static void to_json(json& j, const ObservableVector<T>& v) {
@@ -71,7 +79,6 @@ namespace nlohmann {
         }
     };
 
-    // shared_ptr_map_with_creation<K,V> (map-like wrapper storing shared_ptr<V>)
     template <typename K, typename V>
     struct adl_serializer<shared_ptr_map_with_creation<K, V>> {
         static void to_json(json& j, const shared_ptr_map_with_creation<K, V>& m) {
@@ -245,6 +252,7 @@ namespace GW2_SCT {
         j["height"] = p.height;
         j["textAlign"] = textAlignToInt(p.textAlign);
         j["textCurve"] = textCurveToInt(p.textCurve);
+        j["scrollDirection"] = scrollDirectionToInt(p.scrollDirection);
         j["outlineState"] = outlineStateToInt(p.outlineState);
         j["receivers"] = p.receivers;
     }
@@ -257,6 +265,7 @@ namespace GW2_SCT {
         if (j.contains("height")) j.at("height").get_to(p.height);
         if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
         if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
+        if (j.contains("scrollDirection")) { int v{}; j.at("scrollDirection").get_to(v); p.scrollDirection = intToScrollDirection(v); }
         if (j.contains("outlineState")) { int v{}; j.at("outlineState").get_to(v); p.outlineState = intToOutlineState(v); }
         if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
     }

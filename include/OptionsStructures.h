@@ -84,6 +84,13 @@ namespace GW2_SCT {
 		FULL
 	};
 
+	enum class ScrollDirection {
+		DOWN = 0,
+		UP = 1
+	};
+	extern int scrollDirectionToInt(ScrollDirection type);
+	extern ScrollDirection intToScrollDirection(int i);
+
 	class scroll_area_options_struct {
 	public:
 		std::string name = "";
@@ -93,6 +100,7 @@ namespace GW2_SCT {
 		float height = 0;
 		TextAlign textAlign = TextAlign::LEFT;
 		TextCurve textCurve = TextCurve::LEFT;
+		ScrollDirection scrollDirection = ScrollDirection::DOWN;
 		ScrollAreaOutlineState outlineState = ScrollAreaOutlineState::NONE;
 		ObservableVector<std::shared_ptr<message_receiver_options_struct>> receivers = {};
 	};

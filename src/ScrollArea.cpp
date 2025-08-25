@@ -116,46 +116,60 @@ void GW2_SCT::ScrollArea::paint() {
 
 bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 	float animatedHeight = time * 0.001f * Options::get()->scrollSpeed;
-	float alpha = 1;
+	float alpha = 1.f;
 	float percentage = animatedHeight / options->height;
 	float fadeLength = 0.2f;
-	if (percentage > 1.f) {
-		return false;
-	}
+
+	if (percentage > 1.f) return false;
 	else if (percentage > 1.f - fadeLength) {
-		alpha = 1 - (percentage - 1.f + fadeLength) / fadeLength;
+		alpha = 1.f - (percentage - 1.f + fadeLength) / fadeLength;
 	}
 
 	if (m.prerenderNeeded) m.prerenderText();
 
-	ImVec2 pos(windowWidth * 0.5f + options->offsetX, windowHeight * 0.5f + options->offsetY);
+	float messageHeight = 0.f;
+	if (!m.interpretedText.empty()) {
+		const auto& last = m.interpretedText.back();
+		messageHeight = last.offset.y + last.size.y;
+	}
+	else {
+		messageHeight = getTextSize(m.str.c_str(), m.font, m.fontSize).y;
+	}
 
-	switch (options->textCurve)
-	{
+	ImVec2 pos(windowWidth * 0.5f + options->offsetX,
+		windowHeight * 0.5f + options->offsetY);
+
+	if (options->textCurve != GW2_SCT::TextCurve::STATIC) {
+		if (options->scrollDirection == ScrollDirection::DOWN) {
+			pos.y += animatedHeight;
+		}
+		else { // UP
+			pos.y += options->height - animatedHeight - messageHeight;
+		}
+	}
+
+	switch (options->textCurve) {
 	case GW2_SCT::TextCurve::LEFT:
 		pos.x += options->width * (2 * percentage - 1) * (2 * percentage - 1);
-		pos.y += animatedHeight;
 		break;
 	case GW2_SCT::TextCurve::RIGHT:
 		pos.x += options->width * (1 - (2 * percentage - 1) * (2 * percentage - 1));
-		pos.y += animatedHeight;
 		break;
 	case GW2_SCT::TextCurve::STRAIGHT:
-		pos.y += animatedHeight;
 		break;
 	case GW2_SCT::TextCurve::STATIC:
 		break;
 	}
 
 	if (options->textAlign != TextAlign::LEFT) {
-		switch (options->textAlign)
-		{
+		switch (options->textAlign) {
 		case GW2_SCT::TextAlign::CENTER:
 			pos.x -= 0.5f * m.interpretedTextWidth;
 			break;
 		case GW2_SCT::TextAlign::RIGHT:
 			pos.x -= m.interpretedTextWidth;
 			break;
+		default: break;
 		}
 	}
 
@@ -177,6 +191,7 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 
 	return true;
 }
+
 
 GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(std::shared_ptr<EventMessage> message, std::shared_ptr<message_receiver_options_struct> options)
 	: message(message), options(options) {
