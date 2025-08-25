@@ -335,45 +335,53 @@ void GW2_SCT::Options::loadProfile(std::string characterName) {
 	}
 }
 
+namespace GW2_SCT {
+	// Helper function to initialize a profile with default settings
+	void initProfileWithDefaults(std::shared_ptr<profile_options_struct> p) {
+		p->scrollAreaOptions.clear();
+		auto incomingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
+			std::string(langStringG(LanguageKey::Default_Scroll_Area_Incoming)),
+			-249.f,
+			-25.f,
+			40.f,
+			260.f,
+			TextAlign::RIGHT,
+			TextCurve::LEFT,
+			ScrollAreaOutlineState::NONE,
+			{}
+			});
+		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_IN)) {
+			incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		}
+		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_IN)) {
+			incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		}
+		p->scrollAreaOptions.push_back(incomingStruct);
+		auto outgoingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
+			std::string(langStringG(LanguageKey::Default_Scroll_Area_Outgoing)),
+			217.f,
+			-25.f,
+			40.f,
+			260.f,
+			TextAlign::LEFT,
+			TextCurve::RIGHT,
+			ScrollAreaOutlineState::NONE,
+			{}
+			});
+		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_OUT)) {
+			outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		}
+		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_OUT)) {
+			outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		}
+		p->scrollAreaOptions.push_back(outgoingStruct);
+	}
+}
+
 void GW2_SCT::Options::setDefault() {
 	currentProfileName = defaultProfileName;
 	profile = options.profiles[defaultProfileName] = std::make_shared<profile_options_struct>();
-	auto incomingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
-		std::string(langStringG(LanguageKey::Default_Scroll_Area_Incoming)),
-		-249.f,
-		-25.f,
-		40.f,
-		260.f,
-		TextAlign::RIGHT,
-		TextCurve::LEFT,
-		ScrollAreaOutlineState::NONE,
-		{}
-		});
-	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_IN)) {
-		incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
-	}
-	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_IN)) {
-		incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
-	}
-	profile->scrollAreaOptions.push_back(incomingStruct);
-	auto outgoingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
-		std::string(langStringG(LanguageKey::Default_Scroll_Area_Outgoing)),
-		217.f,
-		-25.f,
-		40.f,
-		260.f,
-		TextAlign::LEFT,
-		TextCurve::RIGHT,
-		ScrollAreaOutlineState::NONE,
-		{}
-		});
-	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_OUT)) {
-		outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
-	}
-	for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_OUT)) {
-		outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
-	}
-	profile->scrollAreaOptions.push_back(outgoingStruct);
+	initProfileWithDefaults(profile);
 }
 
 bool GW2_SCT::Options::isOptionsWindowOpen() {
@@ -910,9 +918,13 @@ void GW2_SCT::Options::paintSkillFilters() {
 void GW2_SCT::Options::paintSkillIcons() {
 	std::string language_warning(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Warning));
 	ImGui::TextWrapped((language_warning + " '" + getSCTPath() + "icons\\" + "'").c_str());
-	ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Enable), &profile->skillIconsEnabled);
+	if (ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Enable), &profile->skillIconsEnabled)) {
+		requestSave();
+	}
 	ImGui::TextWrapped(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Preload_Description));
-	ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Preload), &profile->preloadAllSkillIcons);
+	if (ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Preload), &profile->preloadAllSkillIcons)) {
+		requestSave();
+	}
 	ImGui::Text("");
 	if (ImGui::BeginCombo(
 		ImGui::BuildVisibleLabel(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Display_Type), "skill-icons-display-combo").c_str(),
@@ -921,7 +933,10 @@ void GW2_SCT::Options::paintSkillIcons() {
 		int i = 0;
 		for (auto& skillIconDisplayTypeAndName : skillIconsDisplayTypeNames) {
 			if (ImGui::Selectable(ImGui::BuildLabel(skillIconDisplayTypeAndName.second, "skill-icons-display-selectable", i).c_str())) {
-				profile->skillIconsDisplayType = skillIconDisplayTypeAndName.first;
+				if (profile->skillIconsDisplayType != skillIconDisplayTypeAndName.first) {
+					profile->skillIconsDisplayType = skillIconDisplayTypeAndName.first;
+					requestSave();
+				}
 			}
 			i++;
 		}
@@ -943,6 +958,7 @@ void GW2_SCT::Options::paintProfiles() {
 						currentProfileName = nameAndProfile.first;
 						profile = nameAndProfile.second;
 					}
+					requestSave();
 				}
 			}
 		}
@@ -959,6 +975,7 @@ void GW2_SCT::Options::paintProfiles() {
 				profile = options.profiles[currentProfileName];
 				options.characterProfileMap.erase(currentCharacterName);
 			}
+			requestSave();
 		}
 		if (!doesCharacterMappingExist) {
 			ImGui::BeginDisabled();
@@ -969,6 +986,7 @@ void GW2_SCT::Options::paintProfiles() {
 					currentProfileName = nameAndProfile.first;
 					profile = nameAndProfile.second;
 					options.characterProfileMap[currentCharacterName] = currentProfileName;
+					requestSave();
 				}
 			}
 			ImGui::EndCombo();
@@ -1005,6 +1023,7 @@ void GW2_SCT::Options::paintProfiles() {
 				}
 			}
 			currentProfileName = nameCopy;
+			requestSave();
 		}
 	}
 	if (changedBG) {
@@ -1032,6 +1051,31 @@ void GW2_SCT::Options::paintProfiles() {
 		}
 		currentProfileName = copyName;
 		profile = options.profiles[currentProfileName];
+		requestSave();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Create_Profile_New), "profile-new-button").c_str())) {
+		std::string newProfileName = "New Profile";
+		if (options.profiles.find(newProfileName) != options.profiles.end()) {
+			int i = 1;
+			while (options.profiles.find(newProfileName + " " + std::to_string(i)) != options.profiles.end()) { i++; }
+			newProfileName = newProfileName + " " + std::to_string(i);
+		}
+
+		auto newProfile = std::make_shared<profile_options_struct>();
+		initProfileWithDefaults(newProfile);
+
+		options.profiles[newProfileName] = newProfile;
+
+		if (doesCharacterMappingExist) {
+			options.characterProfileMap[currentCharacterName] = newProfileName;
+		}
+		else {
+			options.globalProfile = newProfileName;
+		}
+		currentProfileName = newProfileName;
+		profile = newProfile;
+		requestSave();
 	}
 	if (currentProfileIsDefault) {
 		ImGui::BeginDisabled();
@@ -1058,6 +1102,7 @@ void GW2_SCT::Options::paintProfiles() {
 			options.profiles.erase(currentProfileName);
 			currentProfileName = defaultProfileName;
 			profile = options.profiles[currentProfileName];
+			requestSave();
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::SameLine();

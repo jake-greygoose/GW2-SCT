@@ -230,6 +230,7 @@
   F(Current_Profile_Heading,)\
   F(Current_Profile_Name,)\
   F(Create_Profile_Copy,)\
+  F(Create_Profile_New,)\
   F(Delete_Profile,)\
   F(Profile_Copy_Suffix,)\
   F(Start_Recording,)\
