@@ -7,7 +7,6 @@
 #include "Language.h"
 #include "Options.h"
 
-// Handler macros now use shared_ptr<const MessageData> views
 #define COMBINE_FUNCTION(NAME) \
     std::function<bool(const GW2_SCT::DataVecView&, const GW2_SCT::DataVecView&)> NAME = \
     [](const GW2_SCT::DataVecView& srcData, const GW2_SCT::DataVecView& targetData)
@@ -181,6 +180,13 @@ namespace GW2_SCT {
         return professionColor;
     };
 
+    PARAMETER_FUNCTION(parameterFunctionSkillId) {
+        if (!data.empty()) {
+            return std::to_string(data.front()->skillId);
+        }
+        return std::string("");
+    };
+
     // -----------------------------
     // Handler table
     // -----------------------------
@@ -192,7 +198,8 @@ namespace GW2_SCT {
                 { 'v', parameterFunctionNegativeValue },
                 { 'n', parameterFunctionEntityName },
                 { 's', parameterFunctionSkillName },
-                { 'i', parameterFunctionSkillIcon }
+                { 'i', parameterFunctionSkillIcon },
+                { 'd', parameterFunctionSkillId }
             }
         );
     }
@@ -204,7 +211,8 @@ namespace GW2_SCT {
                 { 'v', valFunc },
                 { 'n', parameterFunctionEntityName },
                 { 's', parameterFunctionSkillName },
-                { 'i', parameterFunctionSkillIcon }
+                { 'i', parameterFunctionSkillIcon },
+                { 'd', parameterFunctionSkillId }
             }
         );
     }
@@ -218,7 +226,8 @@ namespace GW2_SCT {
                 { 's', parameterFunctionSkillName },
                 { 'c', parameterFunctionEntityProfessionColor },
                 { 'r', parameterFunctionEntityProfessionName },
-                { 'i', parameterFunctionSkillIcon }
+                { 'i', parameterFunctionSkillIcon },
+                { 'd', parameterFunctionSkillId }
             }
         );
     }
@@ -232,7 +241,8 @@ namespace GW2_SCT {
                 { 's', parameterFunctionSkillName },
                 { 'c', parameterFunctionEntityProfessionColor },
                 { 'r', parameterFunctionEntityProfessionName },
-                { 'i', parameterFunctionSkillIcon }
+                { 'i', parameterFunctionSkillIcon },
+                { 'd', parameterFunctionSkillId }
             }
         );
     }
@@ -373,7 +383,6 @@ namespace GW2_SCT {
 
     EventMessage::EventMessage(MessageCategory category, MessageType type, std::shared_ptr<MessageData> data)
         : category(category), type(type), timepoint(std::chrono::system_clock::now()) {
-        // Deep copy to avoid aliasing across EventMessage instances
         messageDatas.push_back(std::make_shared<MessageData>(*data));
     }
 
@@ -385,14 +394,12 @@ namespace GW2_SCT {
             return "";
         }
 
-        // Remove any accidental nulls (defensive)
         messageDatas.erase(
             std::remove_if(messageDatas.begin(), messageDatas.end(),
                 [](const std::shared_ptr<MessageData>& p) { return !p; }),
             messageDatas.end()
         );
 
-        // Build const view for handlers
         DataVecView view;
         view.reserve(messageDatas.size());
         for (auto& sp : messageDatas) view.push_back(sp);
@@ -454,7 +461,6 @@ namespace GW2_SCT {
         auto typ = cat->second.find(type);
         if (typ == cat->second.end()) return false;
 
-        // Views
         DataVecView a, b;
         a.reserve(messageDatas.size());
         for (auto& sp : messageDatas) a.push_back(sp);
@@ -465,7 +471,6 @@ namespace GW2_SCT {
             if (!fn(a, b)) return false;
         }
 
-        // Append deep copies (no aliasing)
         for (auto& src : m->messageDatas) {
             if (src) messageDatas.push_back(std::make_shared<MessageData>(*src));
         }

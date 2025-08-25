@@ -163,17 +163,21 @@
     "Parameter_Description_c": "Color for the skills source profession (use: [col=%c]...[/col])",
     "Parameter_Description_r": "Profession name of source",
     "Parameter_Description_i": "Skillicon",
+    "Parameter_Description_d": "The ID of the skill",
     "Default_Value": "%v %i"
   },
   "Message_Category_Player_In": {
+    "Parameter_Description_d": "The ID of the skill",
     "Parameter_Description_n": "Name of the attacker"
   },
   "Message_Category_Pet_In": {
+    "Parameter_Description_d": "The ID of the skill",
     "Parameter_Description_n": "Name of the attacker",
     "Parameter_Description_p": "Name of the pet/clone being attacked",
     "Default_Value": "%i Pet -%v"
   },
   "Message_Type_Heal": {
+    "Parameter_Description_d": "The ID of the skill",
     "Parameter_Description_v": "Amount of heal",
     "Default_Value": "+%v %i"
   },
@@ -201,9 +205,11 @@
     "Default_Value": "Miss! %i"
   },
   "Message_Player_In_Physical": {
+    "Parameter_Description_d": "The ID of the skill",
     "Default_Value": "%i ([col=%c]%n[/col]) -[col=FFFFFF]%v[/col]"
   },
   "Message_Player_In_Crit": {
+    "Parameter_Description_d": "The ID of the skill",
     "Default_Value": "%i ([col=%c]%n[/col]) -[col=FFFFFF]%v[/col]"
   },
   "Message_Player_In_Bleeding": {
@@ -228,6 +234,7 @@
     "Default_Value": "%i ([col=%c]%n[/col]) -[col=45CDFF]%v[/col]"
   },
   "Message_Player_In_Heal": {
+    "Parameter_Description_d": "The ID of the skill",
     "Parameter_Description_n": "Name of the healing source",
     "Default_Value": "%i +%v"
   },
@@ -255,6 +262,7 @@
     "Default_Value": "%i Miss!"
   },
   "Message_Pet_Out_Heal": {
+    "Parameter_Description_d": "The ID of the skill",
     "Parameter_Description_v": "Name of the pet/clone healing"
   },
   "Message_Pet_Out_HoT": {
