@@ -151,7 +151,7 @@ std::string AbbreviateSkillName(const std::string& skillName) {
 	return result;
 }
 
-std::string ShortenNumber(double number, int precision = 0) {
+std::string ShortenNumber(double number, int precision) {
 	// Handle invalid numbers
 	if (std::isnan(number) || std::isinf(number)) {
 		return "0";
