@@ -26,13 +26,14 @@ static std::queue<std::shared_ptr<GW2_SCT::EventMessage>> s_incomingMessageQueue
 static std::mutex s_queueMutex;
 
 
-GW2_SCT::SCTMain::SCTMain() {}
+GW2_SCT::SCTMain::SCTMain() : arc_exports{} {}
 
 GW2_SCT::SCTMain::~SCTMain() {
 	this->Release();
 	Options::save();
 	FontManager::cleanup();
 }
+
 
 arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_combat, void* mod_imgui, void* mod_options, void* mod_combat_local) {
 	logFile = std::ofstream(getSCTPath() + "sct.log");
@@ -46,32 +47,12 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 			if (oldProfile) {
 				if (currentScrollAreaPushBackCallbackId >= 0) {
 					oldProfile->scrollAreaOptions.removeOnPushBackCallback(currentScrollAreaPushBackCallbackId);
-					currentScrollAreaPushBackCallbackId = -1;
 				}
 				if (currentScrollAreaEraseCallbackId >= 0) {
 					oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
-					currentScrollAreaEraseCallbackId = -1;
 				}
 			}
-
-			scrollAreas.clear();
-			for (const auto& saOpts : newProfile->scrollAreaOptions) {
-				scrollAreas.push_back(std::make_shared<ScrollArea>(saOpts));
-			}
-
-			currentScrollAreaPushBackCallbackId =
-				newProfile->scrollAreaOptions.addOnPushBackCallback(
-					[this](const std::shared_ptr<scroll_area_options_struct>& newVal) {
-						scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
-					});
-
-			currentScrollAreaEraseCallbackId =
-				newProfile->scrollAreaOptions.addOnEraseCallback(
-					[this](int pos) {
-						if (pos >= 0 && pos < static_cast<int>(scrollAreas.size())) {
-							scrollAreas.erase(std::begin(scrollAreas) + pos);
-						}
-					});
+			resetScrollAreas(newProfile);
 		});
 
 	LOG("Set up options changing hook");
@@ -82,12 +63,8 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	Options::load();
 	LOG("Loaded options");
 
-	if (scrollAreas.empty()) {
-		for (const auto& saOpts : Options::get()->scrollAreaOptions) {
-			scrollAreas.push_back(std::make_shared<ScrollArea>(saOpts));
-		}
-	}
-	LOG("Created ", Options::get()->scrollAreaOptions.size(), " scroll areas")
+	resetScrollAreas(Options::get());
+	LOG("Created ", scrollAreas.size(), " scroll areas");
 
 	if (d3Device11 != nullptr) {
 		if (d3d11SwapChain != nullptr) {
@@ -433,4 +410,27 @@ inline void clear(std::queue<std::shared_ptr<GW2_SCT::EventMessage>>& q) {
 uint32_t GW2_SCT::SCTMain::remapSkillID(uint32_t originalID) {
 	if (skillRemaps.count(originalID) == 0) return originalID;
 	else return skillRemaps[originalID];
+}
+
+void GW2_SCT::SCTMain::resetScrollAreas(std::shared_ptr<profile_options_struct> profile) {
+	scrollAreas.clear();
+	if (!profile) return;
+
+	for (const auto& saOpts : profile->scrollAreaOptions) {
+		scrollAreas.push_back(std::make_shared<ScrollArea>(saOpts));
+	}
+
+	currentScrollAreaPushBackCallbackId =
+		profile->scrollAreaOptions.addOnPushBackCallback(
+			[this](const std::shared_ptr<scroll_area_options_struct>& newVal) {
+				scrollAreas.push_back(std::make_shared<ScrollArea>(newVal));
+			});
+
+	currentScrollAreaEraseCallbackId =
+		profile->scrollAreaOptions.addOnEraseCallback(
+			[this](int pos) {
+				if (pos >= 0 && pos < static_cast<int>(scrollAreas.size())) {
+					scrollAreas.erase(std::begin(scrollAreas) + pos);
+				}
+			});
 }

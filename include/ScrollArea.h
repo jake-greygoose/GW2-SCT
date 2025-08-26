@@ -14,6 +14,7 @@ namespace GW2_SCT {
 		ScrollArea(std::shared_ptr<scroll_area_options_struct> options);
 		void receiveMessage(std::shared_ptr<EventMessage> m);
 		void paint();
+		std::shared_ptr<scroll_area_options_struct> getOptions() { return options; }
 	private:
 		struct MessagePrerender {
 			std::shared_ptr<EventMessage> message;

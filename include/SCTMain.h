@@ -39,6 +39,7 @@ namespace GW2_SCT {
 		uintptr_t UIOptions();
 		void sendMessageToEmission(std::shared_ptr<EventMessage> m);
 	private:
+		void resetScrollAreas(std::shared_ptr<profile_options_struct> profile);
 		uint32_t remapSkillID(uint32_t originalID);
 		arcdps_exports arc_exports;
 
