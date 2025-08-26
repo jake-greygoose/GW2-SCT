@@ -253,6 +253,7 @@ namespace GW2_SCT {
         j["textAlign"] = textAlignToInt(p.textAlign);
         j["textCurve"] = textCurveToInt(p.textCurve);
         j["scrollDirection"] = scrollDirectionToInt(p.scrollDirection);
+        j["showCombinedHitCount"] = p.showCombinedHitCount;
         j["outlineState"] = outlineStateToInt(p.outlineState);
         j["receivers"] = p.receivers;
     }
@@ -266,6 +267,7 @@ namespace GW2_SCT {
         if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
         if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
         if (j.contains("scrollDirection")) { int v{}; j.at("scrollDirection").get_to(v); p.scrollDirection = intToScrollDirection(v); }
+        if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
         if (j.contains("outlineState")) { int v{}; j.at("outlineState").get_to(v); p.outlineState = intToOutlineState(v); }
         if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
     }

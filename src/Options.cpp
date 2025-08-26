@@ -349,6 +349,7 @@ namespace GW2_SCT {
 			TextAlign::RIGHT,
 			TextCurve::LEFT,
 			ScrollDirection::DOWN,
+			true,
 			ScrollAreaOutlineState::NONE,
 			{}
 			});
@@ -368,6 +369,7 @@ namespace GW2_SCT {
 			TextAlign::LEFT,
 			TextCurve::RIGHT,
 			ScrollDirection::DOWN,
+			true,
 			ScrollAreaOutlineState::NONE,
 			{}
 			});
@@ -500,7 +502,8 @@ void GW2_SCT::Options::paintScrollAreas() {
 		ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
 		if (ImGui::Button("+", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-			scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New), 0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollDirection::DOWN, ScrollAreaOutlineState::NONE, {} };
+			scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New),
+				0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollDirection::DOWN, true,ScrollAreaOutlineState::NONE, {} };
 			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newScrollArea));
 			selectedScrollArea = -1;
 			requestSave();
@@ -557,6 +560,10 @@ void GW2_SCT::Options::paintScrollAreas() {
 			}
 
 			if (ImGui::Combo("Scroll Direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
+				requestSave();
+			}
+
+			if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
 				requestSave();
 			}
 

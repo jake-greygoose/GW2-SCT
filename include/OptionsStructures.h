@@ -101,6 +101,7 @@ namespace GW2_SCT {
 		TextAlign textAlign = TextAlign::LEFT;
 		TextCurve textCurve = TextCurve::LEFT;
 		ScrollDirection scrollDirection = ScrollDirection::DOWN;
+		bool showCombinedHitCount = true;
 		ScrollAreaOutlineState outlineState = ScrollAreaOutlineState::NONE;
 		ObservableVector<std::shared_ptr<message_receiver_options_struct>> receivers = {};
 	};
@@ -119,6 +120,7 @@ namespace GW2_SCT {
 		ObservableValue<float> fontSize = 22.f;
 		std::vector<std::string> assignedFilterSets = {};
 		bool filtersEnabled = true;
+		bool transient_showCombinedHitCount = true;
 
 		// TODO: relocate this
 		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {

@@ -21,6 +21,8 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 				continue;
 			}
 
+			receiver->transient_showCombinedHitCount = options->showCombinedHitCount;
+
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
 			if (!messageQueue.empty()) {
 				if (Options::get()->combineAllMessages) {

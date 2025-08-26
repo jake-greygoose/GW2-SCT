@@ -432,10 +432,14 @@ namespace GW2_SCT {
                 break;
             }
         }
+
         if (messageDatas.size() > 1) {
-            stm << " [[" << messageDatas.size() << " "
-                << langString(LanguageCategory::Message, LanguageKey::Number_Of_Hits) << "]]";
+            if (opt->transient_showCombinedHitCount) {
+                stm << " [[" << messageDatas.size() << " "
+                    << langString(LanguageCategory::Message, LanguageKey::Number_Of_Hits) << "]]";
+            }
         }
+
         stm << "[/col]";
         return stm.str();
     }
