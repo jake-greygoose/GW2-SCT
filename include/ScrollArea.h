@@ -39,7 +39,6 @@ namespace GW2_SCT {
 		std::mutex messageQueueMutex;
 		std::deque<MessagePrerender> messageQueue = std::deque<MessagePrerender>();
 
-		void paintOutline();
 		bool paintMessage(MessagePrerender& m, __int64 time);
 
 		std::list<std::pair<MessagePrerender, std::chrono::time_point<std::chrono::system_clock>>> paintedMessages;

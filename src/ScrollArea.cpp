@@ -52,24 +52,6 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 	}
 }
 
-void GW2_SCT::ScrollArea::paintOutline() {
-	if (options->outlineState != ScrollAreaOutlineState::NONE) {
-		FLOAT x = windowWidth * 0.5f + options->offsetX;
-		FLOAT y = windowHeight * 0.5f + options->offsetY;
-		FLOAT w = options->width;
-		FLOAT h = options->height;
-
-		ImDrawList* draw_list = ImGui::GetWindowDrawList();
-		if (options->outlineState == ScrollAreaOutlineState::FULL) {
-			draw_list->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(.15f, .15f, .15f, .66f)));
-			draw_list->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, .66f)));
-		}
-		else {
-			draw_list->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(.15f, .15f, .15f, .33f)));
-			draw_list->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ImGui::GetColorU32(ImVec4(1.f, 1.f, 1.f, .33f)));
-		}
-	}
-}
 
 void GW2_SCT::ScrollArea::paint() {
 	std::unique_lock<std::mutex> mlock(messageQueueMutex);
@@ -102,8 +84,6 @@ void GW2_SCT::ScrollArea::paint() {
 		}
 	}
 
-	paintOutline();
-
 	auto it = paintedMessages.begin();
 	while (it != paintedMessages.end()) {
 		__int64 t = duration_cast<milliseconds>(system_clock::now() - it->second).count();
@@ -115,7 +95,6 @@ void GW2_SCT::ScrollArea::paint() {
 		}
 	}
 }
-
 bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 	float animatedHeight = time * 0.001f * Options::get()->scrollSpeed;
 	float alpha = 1.f;
