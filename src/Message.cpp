@@ -90,109 +90,40 @@ namespace GW2_SCT {
     };
 
     PARAMETER_FUNCTION(parameterFunctionOverstackValue) {
-            std::string ret = data.front()->entityName ? std::string(data.front()->entityName) : std::string();
+        int32_t value = 0;
         for (auto& i : data) value += i->overstack_value;
-                if (!temp->entityName || std::strcmp(temp->entityName, ret.c_str()) != 0) {
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionNegativeBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value -= i->buffValue;
         return GW2_SCT_fmt_number(value);
-        if (data.size() == 1 && data.front()->entityName != nullptr) {
-            return std::string(data.front()->entityName);
+    };
+
     PARAMETER_FUNCTION(parameterFunctionOverstackBuffValue) {
-        return std::string("");
+        int32_t value = 0;
         for (auto& i : data) value += i->overstack_value;
         return GW2_SCT_fmt_number(value);
     };
-        if (!data.empty() && data.front()->otherEntityName != nullptr) {
-            return std::string(data.front()->otherEntityName);
+
+    PARAMETER_FUNCTION(parameterFunctionEntityName) {
         if (data.size() > 1) {
-        return std::string("");
+            std::string ret = data.front()->entityName;
             for (auto& temp : data) {
                 if (temp->entityName != ret) {
                     ret = std::string(langString(LanguageCategory::Message, LanguageKey::Multiple_Sources));
-        if (!data.empty() && data.front()->skillName != nullptr) {
-            std::string s = std::string(data.front()->skillName);
+                    break;
+                }
             }
             return ret;
         }
-        return std::string("");
+        if (data.size() == 1) {
             return data.front()->entityName;
         }
         return "";
     };
 
-    PARAMETER_FUNCTION(parameterFunctionOtherEntityName) {
-        if (!data.empty()) {
-            return data.front()->otherEntityName;
-        }
-        return "";
-    };
-
-    PARAMETER_FUNCTION(parameterFunctionSkillName) {
-        if (!data.empty()) {
-            std::string s = data.front()->skillName;
-            if (GW2_SCT_fmt_abbrevSkill) s = AbbreviateSkillName(s);
-            return s;
-        }
-        return "";
-    };
-
-    PARAMETER_FUNCTION(parameterFunctionSkillIcon) {
-        if (Options::get()->skillIconsEnabled && !data.empty()) {
-            return std::string("[icon=" + std::to_string(data.front()->skillId) + "][/icon]");
-        }
-        return std::string("");
-    };
-
-    PARAMETER_FUNCTION(parameterFunctionEntityProfessionName) {
-        if (!data.empty()) {
-            std::string professionName;
-            switch (data.front()->entityProf)
-            {
-            case PROFESSION_GUARDIAN:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Guardian));
-                break;
-            case PROFESSION_WARRIOR:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Warrior));
-                break;
-            case PROFESSION_ENGINEER:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Engineer));
-                break;
-            case PROFESSION_RANGER:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Ranger));
-                break;
-            case PROFESSION_THIEF:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Thief));
-                break;
-            case PROFESSION_ELEMENTALIST:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Elementalist));
-                break;
-            case PROFESSION_MESMER:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Mesmer));
-                break;
-            case PROFESSION_NECROMANCER:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Necromancer));
-                break;
-            case PROFESSION_REVENANT:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Revenant));
-                break;
-            default:
-                professionName = std::string(Language::get(LanguageCategory::Option_UI, LanguageKey::Profession_Colors_Undetectable));
-                break;
-            }
-            return professionName;
-        }
-        return std::string("");
-    };
-
-    PARAMETER_FUNCTION(parameterFunctionEntityProfessionColor) {
-        std::string professionColor;
-        if (!data.empty()) {
-            switch (data.front()->entityProf) {
-            case PROFESSION_GUARDIAN:    professionColor = Options::get()->professionColorGuardian;    break;
             case PROFESSION_WARRIOR:     professionColor = Options::get()->professionColorWarrior;     break;
             case PROFESSION_ENGINEER:    professionColor = Options::get()->professionColorEngineer;    break;
             case PROFESSION_RANGER:      professionColor = Options::get()->professionColorRanger;      break;
@@ -437,7 +368,7 @@ namespace GW2_SCT {
                     auto cat = messageHandlers.find(category);
                     if (cat != messageHandlers.end()) {
                         auto typ = cat->second.find(type);
-            if (opt->transient_showCombinedHitCount) {
+                        if (typ != cat->second.end()) {
                             auto pf = typ->second.parameterToStringFunctions.find(*it);
                             if (pf != typ->second.parameterToStringFunctions.end()) {
                                 stm << pf->second(view);
@@ -445,9 +376,9 @@ namespace GW2_SCT {
                         }
                     }
                 }
-        GW2_SCT_fmt_abbrevSkill = prevAbbrev;
-        GW2_SCT_fmt_numberPrecision = prevPrec;
-
+                break;
+            default:
+                stm << *it;
                 break;
             }
         }
@@ -460,7 +391,7 @@ namespace GW2_SCT {
         }
 
         stm << "[/col]";
-
+                        if (typ != cat->second.end()) {
         return stm.str();
     }
 
@@ -468,10 +399,10 @@ namespace GW2_SCT {
         if (!messageDatas.empty() && messageDatas.front()) {
             return std::make_shared<MessageData>(*messageDatas.front());
         }
-        return {};
-    }
-
     MessageCategory EventMessage::getCategory() { return category; }
+            default:
+                stm << *it;
+                break;
     MessageType     EventMessage::getType() { return type; }
     bool            EventMessage::hasToBeFiltered() { return false; }
     std::chrono::system_clock::time_point EventMessage::getTimepoint() { return timepoint; }
@@ -483,7 +414,7 @@ namespace GW2_SCT {
         auto cat = messageHandlers.find(category);
         if (cat == messageHandlers.end()) return false;
         auto typ = cat->second.find(type);
-        if (typ == cat->second.end()) return false;
+                        if (typ != cat->second.end()) {
 
         DataVecView a, b;
         a.reserve(messageDatas.size());
@@ -491,10 +422,10 @@ namespace GW2_SCT {
     namespace {
         inline char* dup_cstr(const char* s) {
             if (!s) return nullptr;
-            size_t n = std::strlen(s) + 1;
-            char* p = static_cast<char*>(std::malloc(n));
-            if (p) std::memcpy(p, s, n);
             return p;
+            default:
+                stm << *it;
+                break;
         }
     }
 
