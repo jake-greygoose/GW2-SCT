@@ -90,38 +90,61 @@ namespace GW2_SCT {
     };
 
     PARAMETER_FUNCTION(parameterFunctionOverstackValue) {
-        int32_t value = 0;
+            std::string ret = data.front()->entityName ? std::string(data.front()->entityName) : std::string();
         for (auto& i : data) value += i->overstack_value;
-        return GW2_SCT_fmt_number(value);
+                if (!temp->entityName || std::strcmp(temp->entityName, ret.c_str()) != 0) {
     };
 
     PARAMETER_FUNCTION(parameterFunctionNegativeBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value -= i->buffValue;
         return GW2_SCT_fmt_number(value);
-    };
-
+        if (data.size() == 1 && data.front()->entityName != nullptr) {
+            return std::string(data.front()->entityName);
     PARAMETER_FUNCTION(parameterFunctionOverstackBuffValue) {
-        int32_t value = 0;
+        return std::string("");
         for (auto& i : data) value += i->overstack_value;
         return GW2_SCT_fmt_number(value);
     };
-
-    PARAMETER_FUNCTION(parameterFunctionEntityName) {
+        if (!data.empty() && data.front()->otherEntityName != nullptr) {
+            return std::string(data.front()->otherEntityName);
         if (data.size() > 1) {
-            std::string ret = data.front()->entityName;
+        return std::string("");
             for (auto& temp : data) {
                 if (temp->entityName != ret) {
                     ret = std::string(langString(LanguageCategory::Message, LanguageKey::Multiple_Sources));
-                    break;
-                }
+        if (!data.empty() && data.front()->skillName != nullptr) {
+            std::string s = std::string(data.front()->skillName);
             }
             return ret;
         }
-        if (data.size() == 1) {
+        return std::string("");
             return data.front()->entityName;
         }
         return "";
+    };
+
+    PARAMETER_FUNCTION(parameterFunctionOtherEntityName) {
+        if (!data.empty()) {
+            return data.front()->otherEntityName;
+        }
+        return "";
+    };
+
+    PARAMETER_FUNCTION(parameterFunctionSkillName) {
+        if (!data.empty()) {
+            std::string s = data.front()->skillName;
+            if (GW2_SCT_fmt_abbrevSkill) s = AbbreviateSkillName(s);
+            return s;
+        }
+        return "";
+    };
+
+    PARAMETER_FUNCTION(parameterFunctionSkillIcon) {
+        if (Options::get()->skillIconsEnabled && !data.empty()) {
+            return std::string("[icon=" + std::to_string(data.front()->skillId) + "][/icon]");
+        }
+        return std::string("");
     };
 
             case PROFESSION_WARRIOR:     professionColor = Options::get()->professionColorWarrior;     break;
@@ -414,7 +437,7 @@ namespace GW2_SCT {
         auto cat = messageHandlers.find(category);
         if (cat == messageHandlers.end()) return false;
         auto typ = cat->second.find(type);
-                        if (typ != cat->second.end()) {
+            if (opt->transient_showCombinedHitCount) {
 
         DataVecView a, b;
         a.reserve(messageDatas.size());
@@ -422,10 +445,10 @@ namespace GW2_SCT {
     namespace {
         inline char* dup_cstr(const char* s) {
             if (!s) return nullptr;
+        GW2_SCT_fmt_abbrevSkill = prevAbbrev;
+        GW2_SCT_fmt_numberPrecision = prevPrec;
+
             return p;
-            default:
-                stm << *it;
-                break;
         }
     }
 
