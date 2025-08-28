@@ -10,6 +10,8 @@ GW2_SCT::ScrollArea::ScrollArea(std::shared_ptr<scroll_area_options_struct> opti
 }
 
 void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
+	if (!options->enabled) return;
+
 	auto messageData = m->getCopyOfFirstData();
 	if (!messageData) return;
 
@@ -22,9 +24,11 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 			}
 
 			receiver->transient_showCombinedHitCount = options->showCombinedHitCount;
+			receiver->transient_abbreviateSkillNames = options->abbreviateSkillNames;
+			receiver->transient_numberShortPrecision = options->shortenNumbersPrecision;
 
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
-			if (!messageQueue.empty()) {
+			if (!options->disableCombining && !messageQueue.empty()) {
 				if (Options::get()->combineAllMessages) {
 					for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) {
 						if (it->options == receiver && it->message->tryToCombineWith(m)) {
@@ -52,6 +56,7 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 	}
 }
 
+
 void GW2_SCT::ScrollArea::paintOutline() {
 	if (options->outlineState != ScrollAreaOutlineState::NONE) {
 		FLOAT x = windowWidth * 0.5f + options->offsetX;
@@ -73,6 +78,7 @@ void GW2_SCT::ScrollArea::paintOutline() {
 
 void GW2_SCT::ScrollArea::paint() {
 	std::unique_lock<std::mutex> mlock(messageQueueMutex);
+	if (!options->enabled) { paintOutline(); return; }
 
 	if (!messageQueue.empty()) {
 		MessagePrerender& m = messageQueue.front();

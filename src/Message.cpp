@@ -16,11 +16,19 @@
     std::function<std::string(const GW2_SCT::DataVecView&)> NAME = \
     [](const GW2_SCT::DataVecView& data)
 
+namespace {
+    thread_local bool GW2_SCT_fmt_abbrevSkill = false;
+    thread_local int  GW2_SCT_fmt_numberPrecision = -1;
+    inline std::string GW2_SCT_fmt_number(int32_t v) {
+        if (GW2_SCT_fmt_numberPrecision >= 0) {
+            return ::ShortenNumber(static_cast<double>(v), GW2_SCT_fmt_numberPrecision);
+        }
+        return std::to_string(v);
+    }
+}
+
 namespace GW2_SCT {
 
-    // -----------------------------
-    // Combine predicates
-    // -----------------------------
 
     COMBINE_FUNCTION(combineFunctionSkillId) {
         if (!srcData.empty() && !targetData.empty()) {
@@ -43,44 +51,41 @@ namespace GW2_SCT {
         return false;
     };
 
-    // -----------------------------
-    // Parameter functions
-    // -----------------------------
 
     PARAMETER_FUNCTION(parameterFunctionValue) {
         int32_t value = 0;
         for (auto& i : data) value += i->value;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value += i->buffValue;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionNegativeValue) {
         int32_t value = 0;
         for (auto& i : data) value -= i->value;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionOverstackValue) {
         int32_t value = 0;
         for (auto& i : data) value += i->overstack_value;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionNegativeBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value -= i->buffValue;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionOverstackBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value += i->overstack_value;
-        return std::to_string(value);
+        return GW2_SCT_fmt_number(value);
     };
 
     PARAMETER_FUNCTION(parameterFunctionEntityName) {
@@ -109,7 +114,9 @@ namespace GW2_SCT {
 
     PARAMETER_FUNCTION(parameterFunctionSkillName) {
         if (!data.empty() && data.front()->skillName != nullptr) {
-            return std::string(data.front()->skillName);
+            std::string s = std::string(data.front()->skillName);
+            if (GW2_SCT_fmt_abbrevSkill) s = AbbreviateSkillName(s);
+            return s;
         }
         return std::string("");
     };
@@ -188,9 +195,6 @@ namespace GW2_SCT {
         return std::string("");
     };
 
-    // -----------------------------
-    // Handler table
-    // -----------------------------
 
     static MessageHandler makeOutHandler() {
         return MessageHandler(
@@ -334,19 +338,12 @@ namespace GW2_SCT {
         }}
     };
 
-    // -----------------------------
-    // MessageHandler ctor
-    // -----------------------------
     MessageHandler::MessageHandler(
         std::vector<std::function<bool(const DataVecView&, const DataVecView&)>> tryToCombineWithFunctions,
         std::map<char, std::function<std::string(const DataVecView&)>> parameterToStringFunctions
     ) : tryToCombineWithFunctions(std::move(tryToCombineWithFunctions)),
         parameterToStringFunctions(std::move(parameterToStringFunctions)) {
     }
-
-    // -----------------------------
-    // EventMessage
-    // -----------------------------
 
     EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent* ev, ag* src, ag* dst, char* skillname)
         : category(category), type(type), timepoint(std::chrono::system_clock::now()) {
@@ -405,6 +402,11 @@ namespace GW2_SCT {
         view.reserve(messageDatas.size());
         for (auto& sp : messageDatas) view.push_back(sp);
 
+        bool prevAbbrev = GW2_SCT_fmt_abbrevSkill;
+        int  prevPrec = GW2_SCT_fmt_numberPrecision;
+        GW2_SCT_fmt_abbrevSkill = opt->transient_abbreviateSkillNames;
+        GW2_SCT_fmt_numberPrecision = opt->transient_numberShortPrecision;
+
         std::string outputTemplate = opt->outputTemplate;
         std::stringstream stm;
         stm << "[col=" << opt->color << "]";
@@ -442,6 +444,10 @@ namespace GW2_SCT {
         }
 
         stm << "[/col]";
+
+        GW2_SCT_fmt_abbrevSkill = prevAbbrev;
+        GW2_SCT_fmt_numberPrecision = prevPrec;
+
         return stm.str();
     }
 
@@ -481,10 +487,6 @@ namespace GW2_SCT {
         }
         return true;
     }
-
-    // -----------------------------
-    // MessageData impl (deep copy + cleanup)
-    // -----------------------------
 
     namespace {
         inline char* dup_cstr(const char* s) {

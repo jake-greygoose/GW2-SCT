@@ -2,6 +2,7 @@
 #include <memory>
 #include <map>
 #include <utility>
+#include <string>
 
 // ----------------------------------------------
 //  Enum <-> int helpers declared in the header
@@ -129,14 +130,13 @@ namespace GW2_SCT {
         for (auto it = j.begin(); it != j.end(); ++it) {
             try {
                 if (it->is_null()) {
-                    continue; // ignore null entries
+                    continue;
                 }
                 auto filterSet = std::make_shared<NamedSkillFilterSet>();
                 it.value().get_to(*filterSet);
                 manager.addFilterSet(filterSet);
             }
             catch (...) {
-                // Skip invalid filter sets
             }
         }
     }
@@ -243,8 +243,6 @@ namespace GW2_SCT {
         return static_cast<ScrollAreaOutlineState>(i);
     }
 
-    // --- scroll_area_options_struct JSON ---
-
     void to_json(nlohmann::json& j, const scroll_area_options_struct& p) {
         j = nlohmann::json{};
         j["name"] = p.name;
@@ -276,20 +274,6 @@ namespace GW2_SCT {
         if (j.contains("abbreviateSkillNames")) j.at("abbreviateSkillNames").get_to(p.abbreviateSkillNames);
         if (j.contains("shortenNumbersPrecision")) j.at("shortenNumbersPrecision").get_to(p.shortenNumbersPrecision);
         if (j.contains("disableCombining")) j.at("disableCombining").get_to(p.disableCombining);
-        if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
-        if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
-    }
-
-
-    void from_json(const nlohmann::json& j, scroll_area_options_struct& p) {
-        if (j.contains("name")) j.at("name").get_to(p.name);
-        if (j.contains("offsetX")) j.at("offsetX").get_to(p.offsetX);
-        if (j.contains("offsetY")) j.at("offsetY").get_to(p.offsetY);
-        if (j.contains("width")) j.at("width").get_to(p.width);
-        if (j.contains("height")) j.at("height").get_to(p.height);
-        if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
-        if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
-        if (j.contains("scrollDirection")) { int v{}; j.at("scrollDirection").get_to(v); p.scrollDirection = intToScrollDirection(v); }
         if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
         if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
     }
