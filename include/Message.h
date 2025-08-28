@@ -12,9 +12,9 @@
 namespace GW2_SCT {
 
     struct MessageData {
-        std::string skillName;
-        std::string entityName;
-        std::string otherEntityName;
+        char* skillName = nullptr;
+        char* entityName = nullptr;
+        char* otherEntityName = nullptr;
         int32_t value = 0;
         uint32_t overstack_value = 0;
         int32_t buffValue = 0;
@@ -33,7 +33,7 @@ namespace GW2_SCT {
 #endif
         MessageData() {}
         MessageData(const MessageData& toCopy);  // deep copy (char* fields duplicated)
-        ~MessageData();
+        ~MessageData();                          // frees char* fields
     };
 
     // Const view used by handler functions
@@ -55,7 +55,7 @@ namespace GW2_SCT {
         EventMessage(MessageCategory category, MessageType type, cbtevent1* ev, ag* src, ag* dst, char* skillname);
         EventMessage(MessageCategory category, MessageType type, std::shared_ptr<MessageData>);
 
-        std::string getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt, std::shared_ptr<scroll_area_options_struct> scrollAreaOpt);
+        std::string getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt);
         std::shared_ptr<MessageData> getCopyOfFirstData();
         MessageCategory getCategory();
         MessageType getType();
