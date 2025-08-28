@@ -340,48 +340,75 @@ namespace GW2_SCT {
 	// Helper function to initialize a profile with default settings
 	void initProfileWithDefaults(std::shared_ptr<profile_options_struct> p) {
 		p->scrollAreaOptions.clear();
-		auto incomingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
-			std::string(langStringG(LanguageKey::Default_Scroll_Area_Incoming)),
-			-249.f,
-			-25.f,
-			40.f,
-			260.f,
-			TextAlign::RIGHT,
-			TextCurve::LEFT,
-			ScrollDirection::DOWN,
-			true,
-			ScrollAreaOutlineState::NONE,
-			{}
-			});
-		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_IN)) {
-			incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+
+		// --- Incoming area ---
+		auto incomingStruct = std::make_shared<scroll_area_options_struct>();
+		incomingStruct->name = std::string(langStringG(LanguageKey::Default_Scroll_Area_Incoming));
+		incomingStruct->offsetX = -249.f;
+		incomingStruct->offsetY = -25.f;
+		incomingStruct->width = 40.f;
+		incomingStruct->height = 260.f;
+		incomingStruct->textAlign = TextAlign::RIGHT;
+		incomingStruct->textCurve = TextCurve::LEFT;
+		incomingStruct->scrollDirection = ScrollDirection::DOWN;
+
+		// persisted toggles (old + new)
+		incomingStruct->showCombinedHitCount = true;
+		incomingStruct->enabled = true;
+		incomingStruct->abbreviateSkillNames = false;
+		incomingStruct->shortenNumbersPrecision = -1;  // off
+		incomingStruct->disableCombining = false;
+
+		// runtime UI outline
+		incomingStruct->outlineState = ScrollAreaOutlineState::NONE;
+
+		// receivers
+		incomingStruct->receivers.clear();
+		for (const auto& kv : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_IN)) {
+			incomingStruct->receivers.push_back(
+				std::make_shared<message_receiver_options_struct>(kv.second.defaultReceiver));
 		}
-		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_IN)) {
-			incomingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		for (const auto& kv : receiverInformationPerCategoryAndType.at(MessageCategory::PET_IN)) {
+			incomingStruct->receivers.push_back(
+				std::make_shared<message_receiver_options_struct>(kv.second.defaultReceiver));
 		}
 		p->scrollAreaOptions.push_back(incomingStruct);
-		auto outgoingStruct = std::make_shared<scroll_area_options_struct>(scroll_area_options_struct{
-			std::string(langStringG(LanguageKey::Default_Scroll_Area_Outgoing)),
-			217.f,
-			-25.f,
-			40.f,
-			260.f,
-			TextAlign::LEFT,
-			TextCurve::RIGHT,
-			ScrollDirection::DOWN,
-			true,
-			ScrollAreaOutlineState::NONE,
-			{}
-			});
-		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_OUT)) {
-			outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+
+		// --- Outgoing area ---
+		auto outgoingStruct = std::make_shared<scroll_area_options_struct>();
+		outgoingStruct->name = std::string(langStringG(LanguageKey::Default_Scroll_Area_Outgoing));
+		outgoingStruct->offsetX = 217.f;
+		outgoingStruct->offsetY = -25.f;
+		outgoingStruct->width = 40.f;
+		outgoingStruct->height = 260.f;
+		outgoingStruct->textAlign = TextAlign::LEFT;
+		outgoingStruct->textCurve = TextCurve::RIGHT;
+		outgoingStruct->scrollDirection = ScrollDirection::DOWN;
+
+		// persisted toggles (old + new)
+		outgoingStruct->showCombinedHitCount = true;
+		outgoingStruct->enabled = true;
+		outgoingStruct->abbreviateSkillNames = false;
+		outgoingStruct->shortenNumbersPrecision = -1;  // off
+		outgoingStruct->disableCombining = false;
+
+		// runtime UI outline
+		outgoingStruct->outlineState = ScrollAreaOutlineState::NONE;
+
+		// receivers
+		outgoingStruct->receivers.clear();
+		for (const auto& kv : receiverInformationPerCategoryAndType.at(MessageCategory::PLAYER_OUT)) {
+			outgoingStruct->receivers.push_back(
+				std::make_shared<message_receiver_options_struct>(kv.second.defaultReceiver));
 		}
-		for (const auto& messageTypePair : receiverInformationPerCategoryAndType.at(MessageCategory::PET_OUT)) {
-			outgoingStruct->receivers.push_back(std::make_shared<message_receiver_options_struct>(messageTypePair.second.defaultReceiver));
+		for (const auto& kv : receiverInformationPerCategoryAndType.at(MessageCategory::PET_OUT)) {
+			outgoingStruct->receivers.push_back(
+				std::make_shared<message_receiver_options_struct>(kv.second.defaultReceiver));
 		}
 		p->scrollAreaOptions.push_back(outgoingStruct);
 	}
 }
+
 
 void GW2_SCT::Options::setDefault() {
 	currentProfileName = defaultProfileName;
@@ -460,9 +487,9 @@ void GW2_SCT::Options::paintScrollAreas() {
 				ImGui::BuildLabel("scroll-area-selectable", i).c_str(),
 				selectedScrollArea == i,
 				ImGuiSelectableFlags_AllowItemOverlap,
-				ImVec2(0, square_size + style.FramePadding.y * 2))
-				)
+				ImVec2(0, square_size + style.FramePadding.y * 2))) {
 				selectedScrollArea = i;
+			}
 			ImGui::SameLine();
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
 			ImGui::Text(scrollAreaOptions->get()->name.c_str());
@@ -502,9 +529,24 @@ void GW2_SCT::Options::paintScrollAreas() {
 		ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
 		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
 		if (ImGui::Button("+", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-			scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New),
-				0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollDirection::DOWN, true,ScrollAreaOutlineState::NONE, {} };
-			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newScrollArea));
+			scroll_area_options_struct newArea;
+			newArea.name = langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New);
+			newArea.offsetX = 0.f;
+			newArea.offsetY = 0.f;
+			newArea.width = 40.f;
+			newArea.height = 260.f;
+			newArea.textAlign = TextAlign::CENTER;
+			newArea.textCurve = TextCurve::STRAIGHT;
+			newArea.scrollDirection = ScrollDirection::DOWN;
+			newArea.showCombinedHitCount = true;
+			newArea.outlineState = ScrollAreaOutlineState::NONE;
+			newArea.receivers = {};
+			newArea.enabled = true;
+			newArea.abbreviateSkillNames = false;
+			newArea.shortenNumbersPrecision = -1;
+			newArea.disableCombining = false;
+
+			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newArea));
 			selectedScrollArea = -1;
 			requestSave();
 		}
@@ -562,7 +604,32 @@ void GW2_SCT::Options::paintScrollAreas() {
 			if (ImGui::Combo("Scroll Direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
 				requestSave();
 			}
-
+			if (ImGui::Checkbox("Enabled", &scrollAreaOptions->enabled)) {
+				requestSave();
+			}
+			if (ImGui::Checkbox("Abbreviate skill names", &scrollAreaOptions->abbreviateSkillNames)) {
+				requestSave();
+			}
+			{
+				bool shortenOn = scrollAreaOptions->shortenNumbersPrecision >= 0;
+				if (ImGui::Checkbox("Shorten numbers", &shortenOn)) {
+					scrollAreaOptions->shortenNumbersPrecision = shortenOn ? 1 : -1; // default to 1 dp when enabling
+					requestSave();
+				}
+				ImGui::SameLine();
+				if (!shortenOn) ImGui::BeginDisabled();
+				ImGui::SetNextItemWidth(90);
+				int prec = (scrollAreaOptions->shortenNumbersPrecision < 0 ? 0 : scrollAreaOptions->shortenNumbersPrecision);
+				if (ImGui::DragInt("digits", &prec, 1.0f, 0, 3)) {
+					if (prec < 0) prec = 0; if (prec > 3) prec = 3;
+					scrollAreaOptions->shortenNumbersPrecision = prec;
+					requestSave();
+				}
+				if (!shortenOn) ImGui::EndDisabled();
+			}
+			if (ImGui::Checkbox("Disable message combining", &scrollAreaOptions->disableCombining)) {
+				requestSave();
+			}
 			if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
 				requestSave();
 			}
@@ -604,6 +671,7 @@ void GW2_SCT::Options::paintScrollAreas() {
 		ImGui::EndGroup();
 	}
 }
+
 
 
 bool drawColorSelector(const char* name, std::string& color) {

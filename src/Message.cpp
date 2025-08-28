@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include "Language.h"
 #include "Options.h"
+#include "Common.h"
 
 #define COMBINE_FUNCTION(NAME) \
     std::function<bool(const GW2_SCT::DataVecView&, const GW2_SCT::DataVecView&)> NAME = \
