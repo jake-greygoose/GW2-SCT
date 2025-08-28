@@ -78,14 +78,14 @@ void GW2_SCT::ExampleMessageOptions::paint() {
 			std::string s = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(messageToEmmit->first).count()) + "." + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(messageToEmmit->first).count() % 1000 / 10) + "s";
 			s += " - " + categoryNames.at(messageToEmmit->second.category);
 			s += " | " + typeNames.at(messageToEmmit->second.type) + " - ";
-			if (messageToEmmit->second.data->entityName != nullptr) {
-				s += " " + std::string(messageToEmmit->second.data->entityName);
+			if (!messageToEmmit->second.data->entityName.empty()) {
+				s += " " + messageToEmmit->second.data->entityName;
 			}
-			if (messageToEmmit->second.data->otherEntityName != nullptr) {
-				s += " -> " + std::string(messageToEmmit->second.data->otherEntityName);
+			if (!messageToEmmit->second.data->otherEntityName.empty()) {
+				s += " -> " + messageToEmmit->second.data->otherEntityName;
 			}
-			if (messageToEmmit->second.data->skillName != nullptr) {
-				s += " (" + std::string(messageToEmmit->second.data->skillName) + ")";
+			if (!messageToEmmit->second.data->skillName.empty()) {
+				s += " (" + messageToEmmit->second.data->skillName + ")";
 			}
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
 			ImGui::Text(s.c_str());

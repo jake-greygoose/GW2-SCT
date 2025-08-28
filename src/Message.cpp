@@ -19,6 +19,25 @@
 namespace {
     thread_local bool GW2_SCT_fmt_abbrevSkill = false;
     thread_local int  GW2_SCT_fmt_numberPrecision = -1;
+
+    // RAII guard to safely manage thread_local state
+    struct FormattingContextGuard {
+        bool previousAbbrevSkill;
+        int previousNumberPrecision;
+
+        FormattingContextGuard(bool newAbbrev, int newPrecision) {
+            previousAbbrevSkill = GW2_SCT_fmt_abbrevSkill;
+            previousNumberPrecision = GW2_SCT_fmt_numberPrecision;
+            GW2_SCT_fmt_abbrevSkill = newAbbrev;
+            GW2_SCT_fmt_numberPrecision = newPrecision;
+        }
+
+        ~FormattingContextGuard() {
+            GW2_SCT_fmt_abbrevSkill = previousAbbrevSkill;
+            GW2_SCT_fmt_numberPrecision = previousNumberPrecision;
+        }
+    };
+
     inline std::string GW2_SCT_fmt_number(int32_t v) {
         if (GW2_SCT_fmt_numberPrecision >= 0) {
             return ::ShortenNumber(static_cast<double>(v), GW2_SCT_fmt_numberPrecision);
@@ -71,54 +90,54 @@ namespace GW2_SCT {
     };
 
     PARAMETER_FUNCTION(parameterFunctionOverstackValue) {
-        int32_t value = 0;
+            std::string ret = data.front()->entityName ? std::string(data.front()->entityName) : std::string();
         for (auto& i : data) value += i->overstack_value;
-        return GW2_SCT_fmt_number(value);
+                if (!temp->entityName || std::strcmp(temp->entityName, ret.c_str()) != 0) {
     };
 
     PARAMETER_FUNCTION(parameterFunctionNegativeBuffValue) {
         int32_t value = 0;
         for (auto& i : data) value -= i->buffValue;
         return GW2_SCT_fmt_number(value);
-    };
-
+        if (data.size() == 1 && data.front()->entityName != nullptr) {
+            return std::string(data.front()->entityName);
     PARAMETER_FUNCTION(parameterFunctionOverstackBuffValue) {
-        int32_t value = 0;
+        return std::string("");
         for (auto& i : data) value += i->overstack_value;
         return GW2_SCT_fmt_number(value);
     };
-
-    PARAMETER_FUNCTION(parameterFunctionEntityName) {
+        if (!data.empty() && data.front()->otherEntityName != nullptr) {
+            return std::string(data.front()->otherEntityName);
         if (data.size() > 1) {
-            std::string ret = data.front()->entityName ? std::string(data.front()->entityName) : std::string();
+        return std::string("");
             for (auto& temp : data) {
-                if (!temp->entityName || std::strcmp(temp->entityName, ret.c_str()) != 0) {
+                if (temp->entityName != ret) {
                     ret = std::string(langString(LanguageCategory::Message, LanguageKey::Multiple_Sources));
-                    break;
-                }
+        if (!data.empty() && data.front()->skillName != nullptr) {
+            std::string s = std::string(data.front()->skillName);
             }
             return ret;
         }
-        if (data.size() == 1 && data.front()->entityName != nullptr) {
-            return std::string(data.front()->entityName);
-        }
         return std::string("");
+            return data.front()->entityName;
+        }
+        return "";
     };
 
     PARAMETER_FUNCTION(parameterFunctionOtherEntityName) {
-        if (!data.empty() && data.front()->otherEntityName != nullptr) {
-            return std::string(data.front()->otherEntityName);
+        if (!data.empty()) {
+            return data.front()->otherEntityName;
         }
-        return std::string("");
+        return "";
     };
 
     PARAMETER_FUNCTION(parameterFunctionSkillName) {
-        if (!data.empty() && data.front()->skillName != nullptr) {
-            std::string s = std::string(data.front()->skillName);
+        if (!data.empty()) {
+            std::string s = data.front()->skillName;
             if (GW2_SCT_fmt_abbrevSkill) s = AbbreviateSkillName(s);
             return s;
         }
-        return std::string("");
+        return "";
     };
 
     PARAMETER_FUNCTION(parameterFunctionSkillIcon) {
@@ -365,8 +384,8 @@ namespace GW2_SCT {
     EventMessage::EventMessage(MessageCategory category, MessageType type, cbtevent1* ev, ag* src, ag* dst, char* skillname)
         : category(category), type(type), timepoint(std::chrono::system_clock::now()) {
         switch (category) {
-        case MessageCategory::PLAYER_OUT:
-        case MessageCategory::PET_OUT:
+    std::string EventMessage::getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt) {
+        if (!opt) return "";
             messageDatas.push_back(std::make_shared<MessageData>(ev, dst, src, skillname));
             break;
         case MessageCategory::PLAYER_IN:
@@ -383,11 +402,11 @@ namespace GW2_SCT {
         : category(category), type(type), timepoint(std::chrono::system_clock::now()) {
         messageDatas.push_back(std::make_shared<MessageData>(*data));
     }
+        bool prevAbbrev = GW2_SCT_fmt_abbrevSkill;
+        int  prevPrec = GW2_SCT_fmt_numberPrecision;
+        GW2_SCT_fmt_abbrevSkill = opt->transient_abbreviateSkillNames;
+        GW2_SCT_fmt_numberPrecision = opt->transient_numberShortPrecision;
 
-    std::string EventMessage::getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt) {
-        if (!opt) return "";
-
-        if (messageDatas.empty()) {
             LOG("WARN: empty message");
             return "";
         }
@@ -402,11 +421,8 @@ namespace GW2_SCT {
         view.reserve(messageDatas.size());
         for (auto& sp : messageDatas) view.push_back(sp);
 
-        bool prevAbbrev = GW2_SCT_fmt_abbrevSkill;
-        int  prevPrec = GW2_SCT_fmt_numberPrecision;
-        GW2_SCT_fmt_abbrevSkill = opt->transient_abbreviateSkillNames;
-        GW2_SCT_fmt_numberPrecision = opt->transient_numberShortPrecision;
-
+        // The guard handles setting and restoring the format options automatically.
+        FormattingContextGuard guard(scrollAreaOpt->abbreviateSkillNames, scrollAreaOpt->shortenNumbersPrecision);
         std::string outputTemplate = opt->outputTemplate;
         std::stringstream stm;
         stm << "[col=" << opt->color << "]";
@@ -421,7 +437,7 @@ namespace GW2_SCT {
                     auto cat = messageHandlers.find(category);
                     if (cat != messageHandlers.end()) {
                         auto typ = cat->second.find(type);
-                        if (typ != cat->second.end()) {
+            if (opt->transient_showCombinedHitCount) {
                             auto pf = typ->second.parameterToStringFunctions.find(*it);
                             if (pf != typ->second.parameterToStringFunctions.end()) {
                                 stm << pf->second(view);
@@ -429,24 +445,21 @@ namespace GW2_SCT {
                         }
                     }
                 }
-                break;
-            default:
-                stm << *it;
+        GW2_SCT_fmt_abbrevSkill = prevAbbrev;
+        GW2_SCT_fmt_numberPrecision = prevPrec;
+
                 break;
             }
         }
 
         if (messageDatas.size() > 1) {
-            if (opt->transient_showCombinedHitCount) {
+            if (scrollAreaOpt->showCombinedHitCount) {
                 stm << " [[" << messageDatas.size() << " "
                     << langString(LanguageCategory::Message, LanguageKey::Number_Of_Hits) << "]]";
             }
         }
 
         stm << "[/col]";
-
-        GW2_SCT_fmt_abbrevSkill = prevAbbrev;
-        GW2_SCT_fmt_numberPrecision = prevPrec;
 
         return stm.str();
     }
@@ -475,19 +488,6 @@ namespace GW2_SCT {
         DataVecView a, b;
         a.reserve(messageDatas.size());
         for (auto& sp : messageDatas) a.push_back(sp);
-        b.reserve(m->messageDatas.size());
-        for (auto& sp : m->messageDatas) b.push_back(sp);
-
-        for (auto& fn : typ->second.tryToCombineWithFunctions) {
-            if (!fn(a, b)) return false;
-        }
-
-        for (auto& src : m->messageDatas) {
-            if (src) messageDatas.push_back(std::make_shared<MessageData>(*src));
-        }
-        return true;
-    }
-
     namespace {
         inline char* dup_cstr(const char* s) {
             if (!s) return nullptr;
@@ -498,66 +498,69 @@ namespace GW2_SCT {
         }
     }
 
-    MessageData::MessageData(cbtevent* ev, ag* entity, ag* otherEntity, const char* skillname) {
+        return true;
         skillName = dup_cstr(skillname);
+
+    MessageData::MessageData(cbtevent* ev, ag* entity, ag* otherEntity, const char* skillname) {
+        if (skillname) skillName = skillname;
         value = ev->value;
         buffValue = ev->buff_dmg;
         skillId = ev->skillid;
 
-        if (entity) {
+            if (entity->name) entityName = dup_cstr(entity->name);
             entityId = entity->id;
             entityProf = entity->prof;
-            if (entity->name) entityName = dup_cstr(entity->name);
+            if (entity->name) entityName = entity->name;
         }
-        if (otherEntity) {
+            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
             otherEntityId = otherEntity->id;
             otherEntityProf = otherEntity->prof;
-            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
+            if (otherEntity->name) otherEntityName = otherEntity->name;
         }
         hasToBeFiltered = false;
-    }
+        skillName = dup_cstr(skillname);
 
     MessageData::MessageData(cbtevent1* ev, ag* entity, ag* otherEntity, const char* skillname) {
-        skillName = dup_cstr(skillname);
+        if (skillname) skillName = skillname;
         value = ev->value;
         overstack_value = ev->overstack_value;
         buffValue = ev->buff_dmg;
         skillId = ev->skillid;
 
-        if (entity) {
+            if (entity->name) entityName = dup_cstr(entity->name);
             entityId = entity->id;
             entityProf = entity->prof;
-            if (entity->name) entityName = dup_cstr(entity->name);
+            if (entity->name) entityName = entity->name;
         }
-        if (otherEntity) {
+            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
             otherEntityId = otherEntity->id;
             otherEntityProf = otherEntity->prof;
-            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
+            if (otherEntity->name) otherEntityName = otherEntity->name;
         }
         hasToBeFiltered = false;
     }
 
 #ifdef _DEBUG
-    MessageData::MessageData(int32_t value, int32_t buffValue, uint32_t overstack_value, uint32_t skillId,
+        skillName = dup_cstr(skillname);
         ag* entity, ag* otherEntity, const char* skillname)
         : value(value), overstack_value(overstack_value), buffValue(buffValue), skillId(skillId) {
-        skillName = dup_cstr(skillname);
+            if (entity->name) entityName = dup_cstr(entity->name);
         if (entity) {
             entityId = entity->id; entityProf = entity->prof;
-            if (entity->name) entityName = dup_cstr(entity->name);
-        }
+            if (entity->name) entityName = entity->name;
+            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
         if (otherEntity) {
             otherEntityId = otherEntity->id; otherEntityProf = otherEntity->prof;
-            if (otherEntity->name) otherEntityName = dup_cstr(otherEntity->name);
+            if (otherEntity->name) otherEntityName = otherEntity->name;
         }
         hasToBeFiltered = false;
     }
-#endif
-
-    MessageData::MessageData(const MessageData& o) {
         skillName = dup_cstr(o.skillName);
         entityName = dup_cstr(o.entityName);
         otherEntityName = dup_cstr(o.otherEntityName);
+        skillName = o.skillName;
+        entityName = o.entityName;
+        otherEntityName = o.otherEntityName;
         value = o.value;
         overstack_value = o.overstack_value;
         buffValue = o.buffValue;
@@ -566,14 +569,9 @@ namespace GW2_SCT {
         entityProf = o.entityProf;
         otherEntityId = o.otherEntityId;
         otherEntityProf = o.otherEntityProf;
-        hasToBeFiltered = o.hasToBeFiltered;
-    }
-
     MessageData::~MessageData() {
         if (skillName)       std::free(skillName);
         if (entityName)      std::free(entityName);
         if (otherEntityName) std::free(otherEntityName);
         skillName = entityName = otherEntityName = nullptr;
     }
-
-} // namespace GW2_SCT

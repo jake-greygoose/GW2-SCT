@@ -124,9 +124,6 @@ namespace GW2_SCT {
 		ObservableValue<float> fontSize = 22.f;
 		std::vector<std::string> assignedFilterSets = {};
 		bool filtersEnabled = true;
-		bool transient_showCombinedHitCount = true;
-		bool transient_abbreviateSkillNames = false;
-		int  transient_numberShortPrecision = -1;
 
 		// TODO: relocate this
 		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {

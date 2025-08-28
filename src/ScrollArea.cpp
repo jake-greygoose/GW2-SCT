@@ -18,14 +18,9 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 	for (auto& receiver : options->receivers) {
 		if (receiver->enabled && m->getCategory() == receiver->category && m->getType() == receiver->type) {
 
-			std::string skillName = messageData->skillName ? std::string(messageData->skillName) : "";
-			if (receiver->isSkillFiltered(messageData->skillId, skillName, Options::get()->filterManager)) {
+			if (receiver->isSkillFiltered(messageData->skillId, messageData->skillName, Options::get()->filterManager)) {
 				continue;
 			}
-
-			receiver->transient_showCombinedHitCount = options->showCombinedHitCount;
-			receiver->transient_abbreviateSkillNames = options->abbreviateSkillNames;
-			receiver->transient_numberShortPrecision = options->shortenNumbersPrecision;
 
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
 			if (!options->disableCombining && !messageQueue.empty()) {
@@ -47,7 +42,7 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 					}
 				}
 			}
-			MessagePrerender preMessage = MessagePrerender(m, receiver);
+			MessagePrerender preMessage = MessagePrerender(m, receiver, options);
 			if (preMessage.options != nullptr)
 				messageQueue.push_back(std::move(preMessage));
 			mlock.unlock();
@@ -201,8 +196,8 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 }
 
 
-GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(std::shared_ptr<EventMessage> message, std::shared_ptr<message_receiver_options_struct> options)
-	: message(message), options(options) {
+GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(std::shared_ptr<EventMessage> message, std::shared_ptr<message_receiver_options_struct> options, std::shared_ptr<scroll_area_options_struct> scrollAreaOptions)
+	: message(message), options(options), scrollAreaOptions(scrollAreaOptions) {
 	category = message->getCategory();
 	type = message->getType();
 	update();
@@ -215,6 +210,7 @@ GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(std::shared_ptr<EventMes
 GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(const MessagePrerender& copy) {
 	message = copy.message;
 	options = copy.options;
+	scrollAreaOptions = copy.scrollAreaOptions;
 	category = copy.category;
 	type = copy.type;
 	if (copy.prerenderNeeded) {
@@ -249,7 +245,7 @@ void GW2_SCT::ScrollArea::MessagePrerender::update() {
 		prerenderNeeded = false;
 		return;
 	}
-	str = message->getStringForOptions(options);
+	str = message->getStringForOptions(options, scrollAreaOptions);
 	font = getFontType(options->font);
 	fontSize = options->fontSize;
 	if (fontSize < 0) {
