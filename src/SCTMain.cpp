@@ -327,9 +327,9 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 }
 
 uintptr_t GW2_SCT::SCTMain::UIUpdate() {
-#if _DEBUG
-	auto start_time = std::chrono::high_resolution_clock::now();
-#endif
+	#if _DEBUG
+		auto start_time = std::chrono::high_resolution_clock::now();
+	#endif
 
 	GW2_SCT::Texture::BeginPresentCycle();
 
@@ -355,15 +355,13 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	GW2_SCT::FontType::ProcessPendingAtlasUpdates();
 	FontType::ensureAtlasCreation();
 
-	Options::paint(scrollAreas);
-	Options::paintScrollAreaOverlay(scrollAreas);
+	// Options
+	Options::paint();
 	ExampleMessageOptions::paint();
-
 	if (Options::get()->sctEnabled) {
 		ImVec2 windowSize((float)windowWidth, (float)windowHeight);
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
 		ImGui::SetNextWindowSize(windowSize);
-
 		ImGui::Begin("SCT", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
 
 		for (std::shared_ptr<ScrollArea> scrollArea : scrollAreas) {
@@ -386,6 +384,7 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	return 0;
 }
 
+
 uintptr_t GW2_SCT::SCTMain::UIOptions() {
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, { 4, 3 });
 	if (ImGui::Button(langString(LanguageCategory::Option_UI, LanguageKey::Title)))
@@ -401,6 +400,11 @@ void GW2_SCT::SCTMain::sendMessageToEmission(std::shared_ptr<EventMessage> m) {
 
 	std::lock_guard<std::mutex> lock(s_queueMutex);
 	s_incomingMessageQueue.push(m);
+}
+
+inline void clear(std::queue<std::shared_ptr<GW2_SCT::EventMessage>>& q) {
+	std::queue<std::shared_ptr<GW2_SCT::EventMessage>> empty;
+	std::swap(q, empty);
 }
 
 uint32_t GW2_SCT::SCTMain::remapSkillID(uint32_t originalID) {

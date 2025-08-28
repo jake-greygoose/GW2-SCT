@@ -2,18 +2,16 @@
 #include <sstream>
 #include <iomanip>
 #include <vector>
-#include <algorithm>
-#include <cstdio>
+#include <regex>
 #include "json.hpp"
 #include "Common.h"
+#include "SimpleIni.h"
 #include "imgui.h"
 #include "imgui_stdlib.h"
 #include "imgui_sct_widgets.h"
 #include "TemplateInterpreter.h"
 #include "Language.h"
 #include "SkillFilterStructures.h"
-#include "ScrollArea.h"
-
 
 const char* TextAlignTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Align_Left), langStringG(GW2_SCT::LanguageKey::Text_Align_Center), langStringG(GW2_SCT::LanguageKey::Text_Align_Right) };
 const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right) };
@@ -35,12 +33,6 @@ std::string GW2_SCT::Options::currentCharacterName = "";
 std::chrono::steady_clock::time_point GW2_SCT::Options::lastSaveRequest = std::chrono::steady_clock::now();
 bool GW2_SCT::Options::saveRequested = false;
 const std::chrono::milliseconds GW2_SCT::Options::SAVE_DELAY(500);
-
-static bool inScrollAreasTab = false;
-
-bool GW2_SCT::Options::isInScrollAreasTab() {
-	return windowIsOpen && inScrollAreasTab;
-}
 
 const std::map<GW2_SCT::MessageCategory, std::string> messageCategorySections = {
 	{ GW2_SCT::MessageCategory::PLAYER_OUT, "Messages_Player_Out" },
@@ -197,7 +189,8 @@ void GW2_SCT::Options::open() {
 	windowIsOpen = true;
 }
 
-void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
+void GW2_SCT::Options::paint() {
+
 	processPendingSave();
 
 	if (windowIsOpen) {
@@ -209,41 +202,36 @@ void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scr
 		if (ImGui::BeginTabBar("##options-tab-bar", tab_bar_flags))
 		{
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_General))) {
-				inScrollAreasTab = false;
 				paintGeneral();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Scroll_Areas))) {
-				inScrollAreasTab = true;
-				paintScrollAreas(scrollAreas);
-				ImGui::EndTabItem();
-			}
-			else {
-				if (inScrollAreasTab) {
-					inScrollAreasTab = false;
-					// Clean up outlines when switching away from the Scroll Areas tab
+				paintScrollAreas();
+				if (!windowIsOpen) {
 					for (auto scrollAreaOptions : profile->scrollAreaOptions) {
 						if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
 					}
 				}
+				ImGui::EndTabItem();
+			}
+			else {
+				for (auto scrollAreaOptions : profile->scrollAreaOptions) {
+					if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
+				}
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Profession_Colors))) {
-				inScrollAreasTab = false;
 				paintProfessionColors();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Filtered_Skills))) {
-				inScrollAreasTab = false;
 				paintSkillFilters();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Skill_Icons))) {
-				inScrollAreasTab = false;
 				paintSkillIcons();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Profiles))) {
-				inScrollAreasTab = false;
 				paintProfiles();
 				ImGui::EndTabItem();
 			}
@@ -253,23 +241,6 @@ void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scr
 		ImGui::End();
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
-	}
-	else {
-		inScrollAreasTab = false;
-		// Cleanup logic for when the window is closed
-		bool stateWasChanged = false;
-		for (auto scrollAreaOptions : profile->scrollAreaOptions) {
-			if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) {
-				scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
-				stateWasChanged = true;
-			}
-		}
-
-		// If we reset any outlines, save the settings immediately to prevent them
-		// from reappearing on the next game launch, even if the game crashes.
-		if (stateWasChanged) {
-			save();
-		}
 	}
 }
 
@@ -475,295 +446,164 @@ void GW2_SCT::Options::paintGeneral() {
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Out_Only_For_Target_Toolip));
 }
 
-void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
-    const float square_size = ImGui::GetFontSize();
-    ImGuiStyle style = ImGui::GetStyle();
+void GW2_SCT::Options::paintScrollAreas() {
+	const float square_size = ImGui::GetFontSize();
+	ImGuiStyle style = ImGui::GetStyle();
 
-    static int selectedScrollArea = -1;
-    {
-        ImGui::BeginChild("left pane", ImVec2(ImGui::GetWindowWidth() * 0.25f, 0), true);
-        int i = 0;
-        auto scrollAreaOptions = std::begin(profile->scrollAreaOptions);
-        while (scrollAreaOptions != std::end(profile->scrollAreaOptions)) {
-            if (ImGui::Selectable(
-                ImGui::BuildLabel("scroll-area-selectable", i).c_str(),
-                selectedScrollArea == i,
-                ImGuiSelectableFlags_AllowItemOverlap,
-                ImVec2(0, square_size + style.FramePadding.y * 2))
-                )
-                selectedScrollArea = i;
-            ImGui::SameLine();
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
-            ImGui::Text(scrollAreaOptions->get()->name.c_str());
-            ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.FramePadding.y);
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
-            std::string modalName = ImGui::BuildLabel(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title), "scroll-area-delete-modal", i);
-            if (ImGui::Button(ImGui::BuildLabel("-", "scroll-area-delete-button", i).c_str(), ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-                ImGui::OpenPopup(modalName.c_str());
-            }
-            ImGui::PopStyleColor();
-            if (ImGui::BeginPopupModal(modalName.c_str())) {
-                ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Content));
-                ImGui::Separator();
-                if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
-                    scrollAreaOptions = profile->scrollAreaOptions.erase(scrollAreaOptions);
-                    selectedScrollArea = -1;
-                    requestSave();
-                    ImGui::CloseCurrentPopup();
-                }
-                else {
-                    scrollAreaOptions++;
-                    i++;
-                }
-                ImGui::SameLine();
-                if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Cancel), ImVec2(120, 0))) {
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::EndPopup();
-            }
-            else {
-                scrollAreaOptions++;
-                i++;
-            }
-        }
-        ImGui::Text("");
-        ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
-        if (ImGui::Button("+", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
-            scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New), 0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollDirection::DOWN, true, ScrollAreaOutlineState::NONE, {} };
-            profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newScrollArea));
-            selectedScrollArea = -1;
-            requestSave();
-        }
-        ImGui::PopStyleColor();
-        ImGui::EndChild();
-    }
-    ImGui::SameLine();
-
-    // Right
-    {
-        ImGui::BeginGroup();
-        ImGui::BeginChild("scroll area details", ImVec2(0, -ImGui::GetFrameHeightWithSpacing())); // Leave room for 1 line below us
-        if (selectedScrollArea >= 0 && selectedScrollArea < profile->scrollAreaOptions.size()) {
-            std::shared_ptr<scroll_area_options_struct> scrollAreaOptions = profile->scrollAreaOptions[selectedScrollArea];
-
-            for (auto otherScrollAreaOptions : profile->scrollAreaOptions) {
-                if (scrollAreaOptions == otherScrollAreaOptions) {
-                    if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::FULL) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::FULL;
-                }
-                else {
-                    if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::LIGHT) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::LIGHT;
-                }
-            }
-
-            if (ImGui::InputText((std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Scroll_Areas_Name)) + "##scroll-area-name").c_str(), &scrollAreaOptions->name)) {
-                requestSave();
-            }
-
-            ImGui::Separator();
-
-            if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Horizontal_Offset), &scrollAreaOptions->offsetX, 1.f, -windowWidth / 2.f, windowWidth / 2.f)) {
-                requestSave();
-            }
-
-            if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Vertical_Offset), &scrollAreaOptions->offsetY, 1.f, -windowHeight / 2.f, windowHeight / 2.f)) {
-                requestSave();
-            }
-
-            if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Width), &scrollAreaOptions->width, 1.f, 1.f, (float)windowWidth)) {
-                requestSave();
-            }
-
-            if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Height), &scrollAreaOptions->height, 1.f, 1.f, (float)windowHeight)) {
-                requestSave();
-            }
-
-            if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Align), (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
-                requestSave();
-            }
-
-            if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Flow), (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
-                requestSave();
-            }
-
-            if (ImGui::Combo("Scroll Direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
-                requestSave();
-            }
-
-            if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
-                requestSave();
-            }
-
-            ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
-            int receiverOptionsCounter = 0;
-            auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
-            while (receiverOptionsIterator != std::end(scrollAreaOptions->receivers)) {
-                int receiverReturnFlags = ImGui::ReceiverCollapsible(receiverOptionsCounter, *receiverOptionsIterator);
-                if (receiverReturnFlags & ReceiverCollapsible_Remove) {
-                    receiverOptionsIterator = scrollAreaOptions->receivers.erase(receiverOptionsIterator);
-                    requestSave();
-                }
-                else {
-                    if (receiverReturnFlags != 0) {
-                        requestSave();
-                    }
-                    receiverOptionsIterator++;
-                    receiverOptionsCounter++;
-                }
-            }
-            if (scrollAreaOptions->receivers.size() == 0) ImGui::Text("    -");
-            ImGui::Separator();
-            ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::New_Receiver));
-            static MessageCategory newReceiverCategory = MessageCategory::PLAYER_OUT;
-            static MessageType newReceiverType = MessageType::PHYSICAL;
-            if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
-                auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;
-                scrollAreaOptions->receivers.push_back(std::make_shared<message_receiver_options_struct>(defaultReceiver));
-                requestSave();
-            }
-        }
-        else {
-            for (auto scrollAreaOptions : profile->scrollAreaOptions) {
-                if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::LIGHT) scrollAreaOptions->outlineState = ScrollAreaOutlineState::LIGHT;
-            }
-        }
-        ImGui::EndChild();
-        ImGui::EndGroup();
-    }
-
-}
-
-void GW2_SCT::Options::paintScrollAreaOverlay(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
-	if (!windowIsOpen || !inScrollAreasTab) return;
-
-	ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-	ImGui::SetNextWindowSize(ImVec2((float)windowWidth, (float)windowHeight));
-	ImGuiWindowFlags drawFlags =
-		ImGuiWindowFlags_NoTitleBar |
-		ImGuiWindowFlags_NoResize |
-		ImGuiWindowFlags_NoMove |
-		ImGuiWindowFlags_NoScrollbar |
-		ImGuiWindowFlags_NoBackground |
-		ImGuiWindowFlags_NoSavedSettings |
-		ImGuiWindowFlags_NoBringToFrontOnFocus |
-		ImGuiWindowFlags_NoInputs;
-
-	ImGui::Begin("##ScrollAreaOverlay_Draw", nullptr, drawFlags);
-
-	struct Rect {
-		std::shared_ptr<scroll_area_options_struct> opt;
-		ImVec2 pos;
-		ImVec2 size;
-	};
-
-	std::vector<Rect> rects;
-	rects.reserve(scrollAreas.size());
-
-	ImDrawList* dl = ImGui::GetWindowDrawList();
-
-	for (auto& sa : scrollAreas) {
-		auto o = sa->getOptions();
-		if (!o) continue;
-		if (o->outlineState == ScrollAreaOutlineState::NONE) continue;
-
-		const float x = windowWidth * 0.5f + o->offsetX;
-		const float y = windowHeight * 0.5f + o->offsetY;
-		const float w = o->width;
-		const float h = o->height;
-
-		rects.push_back(Rect{ o, ImVec2(x, y), ImVec2(w, h) });
-
-		const bool full = (o->outlineState == ScrollAreaOutlineState::FULL);
-		const ImU32 fillCol = ImGui::GetColorU32(full ? ImVec4(0.15f, 0.15f, 0.15f, 0.66f)
-			: ImVec4(0.15f, 0.15f, 0.15f, 0.33f));
-		const ImU32 rectCol = ImGui::GetColorU32(full ? ImVec4(1.00f, 1.00f, 1.00f, 0.66f)
-			: ImVec4(1.00f, 1.00f, 1.00f, 0.33f));
-		const ImU32 textCol = ImGui::GetColorU32(full ? ImVec4(1.00f, 1.00f, 1.00f, 0.90f)
-			: ImVec4(1.00f, 1.00f, 1.00f, 0.50f));
-
-		dl->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), fillCol);
-		dl->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), rectCol);
-
-		if (!o->name.empty()) {
-			ImVec2 name_sz = ImGui::CalcTextSize(o->name.c_str());
-			dl->AddText(ImVec2(x + (w - name_sz.x) * 0.5f, y + (h - name_sz.y) * 0.5f), textCol, o->name.c_str());
-		}
-
-		char buf[64];
-		std::snprintf(buf, sizeof(buf), "X: %.0f, Y: %.0f", o->offsetX, o->offsetY);
-		ImVec2 off_sz = ImGui::CalcTextSize(buf);
-		dl->AddText(ImVec2(x + (w - off_sz.x) * 0.5f, y + 5.0f), textCol, buf);
-	}
-
-	ImGui::End();
-
-	static std::shared_ptr<scroll_area_options_struct> dragged = nullptr;
-	static ImVec2 dragStartMouse(0.0f, 0.0f);
-	static ImVec2 dragStartOffset(0.0f, 0.0f);
-
-	for (const Rect& r : rects) {
-		if (!r.opt || r.opt->outlineState != ScrollAreaOutlineState::FULL)
-			continue;
-
-		ImGui::SetNextWindowPos(r.pos);
-		ImGui::SetNextWindowSize(r.size);
-		ImGuiWindowFlags hitFlags =
-			ImGuiWindowFlags_NoTitleBar |
-			ImGuiWindowFlags_NoResize |
-			ImGuiWindowFlags_NoMove |
-			ImGuiWindowFlags_NoScrollbar |
-			ImGuiWindowFlags_NoSavedSettings |
-			ImGuiWindowFlags_NoBringToFrontOnFocus |
-			ImGuiWindowFlags_NoBackground |
-			ImGuiWindowFlags_NoFocusOnAppearing;
-
-		char winName[64];
-		std::snprintf(winName, sizeof(winName), "##ScrollAreaHit_%p", (void*)r.opt.get());
-
-		ImGui::Begin(winName, nullptr, hitFlags);
-
-		const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_None);
-
-		ImGuiIO& io = ImGui::GetIO();
-
-		if (!dragged && hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-			dragged = r.opt;
-			dragStartMouse = io.MousePos;
-			dragStartOffset = ImVec2(r.opt->offsetX, r.opt->offsetY);
-		}
-
-		if (dragged == r.opt) {
-			const float dx = io.MousePos.x - dragStartMouse.x;
-			const float dy = io.MousePos.y - dragStartMouse.y;
-
-			r.opt->offsetX = dragStartOffset.x + dx;
-			r.opt->offsetY = dragStartOffset.y + dy;
-
-			const float minX = -windowWidth * 0.5f;
-			const float maxX = windowWidth * 0.5f - r.size.x;
-			const float minY = -windowHeight * 0.5f;
-			const float maxY = windowHeight * 0.5f - r.size.y;
-
-			r.opt->offsetX = std::max(minX, std::min(r.opt->offsetX, maxX));
-			r.opt->offsetY = std::max(minY, std::min(r.opt->offsetY, maxY));
-
-			requestSave();
-
-			if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-				dragged = nullptr;
+	static int selectedScrollArea = -1;
+	{
+		ImGui::BeginChild("left pane", ImVec2(ImGui::GetWindowWidth() * 0.25f, 0), true);
+		int i = 0;
+		auto scrollAreaOptions = std::begin(profile->scrollAreaOptions);
+		while (scrollAreaOptions != std::end(profile->scrollAreaOptions)) {
+			if (ImGui::Selectable(
+				ImGui::BuildLabel("scroll-area-selectable", i).c_str(),
+				selectedScrollArea == i,
+				ImGuiSelectableFlags_AllowItemOverlap,
+				ImVec2(0, square_size + style.FramePadding.y * 2))
+				)
+				selectedScrollArea = i;
+			ImGui::SameLine();
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() + style.FramePadding.y);
+			ImGui::Text(scrollAreaOptions->get()->name.c_str());
+			ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
+			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - style.FramePadding.y);
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+			std::string modalName = ImGui::BuildLabel(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title), "scroll-area-delete-modal", i);
+			if (ImGui::Button(ImGui::BuildLabel("-", "scroll-area-delete-button", i).c_str(), ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
+				ImGui::OpenPopup(modalName.c_str());
+			}
+			ImGui::PopStyleColor();
+			if (ImGui::BeginPopupModal(modalName.c_str())) {
+				ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Content));
+				ImGui::Separator();
+				if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), ImVec2(120, 0))) {
+					scrollAreaOptions = profile->scrollAreaOptions.erase(scrollAreaOptions);
+					selectedScrollArea = -1;
+					requestSave();
+					ImGui::CloseCurrentPopup();
+				}
+				else {
+					scrollAreaOptions++;
+					i++;
+				}
+				ImGui::SameLine();
+				if (ImGui::Button(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Cancel), ImVec2(120, 0))) {
+					ImGui::CloseCurrentPopup();
+				}
+				ImGui::EndPopup();
+			}
+			else {
+				scrollAreaOptions++;
+				i++;
 			}
 		}
+		ImGui::Text("");
+		ImGui::SameLineEnd(square_size + style.FramePadding.y * 2);
+		ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.67f, 0.40f, 0.40f, 0.60f));
+		if (ImGui::Button("+", ImVec2(square_size + style.FramePadding.y * 2, square_size + style.FramePadding.y * 2))) {
+			scroll_area_options_struct newScrollArea{ langString(LanguageCategory::Scroll_Area_Option_UI, LanguageKey::Scroll_Areas_New),
+				0.f, 0.f, 40.f, 260.f, TextAlign::CENTER, TextCurve::STRAIGHT, ScrollDirection::DOWN, true,ScrollAreaOutlineState::NONE, {} };
+			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newScrollArea));
+			selectedScrollArea = -1;
+			requestSave();
+		}
+		ImGui::PopStyleColor();
+		ImGui::EndChild();
+	}
+	ImGui::SameLine();
 
-		if (hovered || dragged == r.opt)
-			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+	// Right
+	{
+		ImGui::BeginGroup();
+		ImGui::BeginChild("scroll area details", ImVec2(0, -ImGui::GetFrameHeightWithSpacing())); // Leave room for 1 line below us
+		if (selectedScrollArea >= 0 && selectedScrollArea < profile->scrollAreaOptions.size()) {
+			std::shared_ptr<scroll_area_options_struct> scrollAreaOptions = profile->scrollAreaOptions[selectedScrollArea];
 
-		ImGui::End();
+			for (auto otherScrollAreaOptions : profile->scrollAreaOptions) {
+				if (scrollAreaOptions == otherScrollAreaOptions) {
+					if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::FULL) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::FULL;
+				}
+				else {
+					if (otherScrollAreaOptions->outlineState != ScrollAreaOutlineState::LIGHT) otherScrollAreaOptions->outlineState = ScrollAreaOutlineState::LIGHT;
+				}
+			}
+
+			if (ImGui::InputText((std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Scroll_Areas_Name)) + "##scroll-area-name").c_str(), &scrollAreaOptions->name)) {
+				requestSave();
+			}
+
+			ImGui::Separator();
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Horizontal_Offset), &scrollAreaOptions->offsetX, 1.f, -windowWidth / 2.f, windowWidth / 2.f)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Vertical_Offset), &scrollAreaOptions->offsetY, 1.f, -windowHeight / 2.f, windowHeight / 2.f)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Width), &scrollAreaOptions->width, 1.f, 1.f, (float)windowWidth)) {
+				requestSave();
+			}
+
+			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Height), &scrollAreaOptions->height, 1.f, 1.f, (float)windowHeight)) {
+				requestSave();
+			}
+
+			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Align), (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
+				requestSave();
+			}
+
+			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Flow), (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
+				requestSave();
+			}
+
+			if (ImGui::Combo("Scroll Direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
+				requestSave();
+			}
+
+			if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
+				requestSave();
+			}
+
+			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
+			int receiverOptionsCounter = 0;
+			auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
+			while (receiverOptionsIterator != std::end(scrollAreaOptions->receivers)) {
+				int receiverReturnFlags = ImGui::ReceiverCollapsible(receiverOptionsCounter, *receiverOptionsIterator);
+				if (receiverReturnFlags & ReceiverCollapsible_Remove) {
+					receiverOptionsIterator = scrollAreaOptions->receivers.erase(receiverOptionsIterator);
+					requestSave();
+				}
+				else {
+					if (receiverReturnFlags != 0) {
+						requestSave();
+					}
+					receiverOptionsIterator++;
+					receiverOptionsCounter++;
+				}
+			}
+			if (scrollAreaOptions->receivers.size() == 0) ImGui::Text("    -");
+			ImGui::Separator();
+			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::New_Receiver));
+			static MessageCategory newReceiverCategory = MessageCategory::PLAYER_OUT;
+			static MessageType newReceiverType = MessageType::PHYSICAL;
+			if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
+				auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;
+				scrollAreaOptions->receivers.push_back(std::make_shared<message_receiver_options_struct>(defaultReceiver));
+				requestSave();
+			}
+		}
+		else {
+			for (auto scrollAreaOptions : profile->scrollAreaOptions) {
+				if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::FULL) scrollAreaOptions->outlineState = ScrollAreaOutlineState::FULL;
+			}
+		}
+		ImGui::EndChild();
+		ImGui::EndGroup();
 	}
 }
-
-
-
 
 
 bool drawColorSelector(const char* name, std::string& color) {
