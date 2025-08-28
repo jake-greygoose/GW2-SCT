@@ -93,6 +93,7 @@ namespace GW2_SCT {
 
 	class scroll_area_options_struct {
 	public:
+		bool enabled = true;
 		std::string name = "";
 		float offsetX = 0;
 		float offsetY = 0;
@@ -104,6 +105,9 @@ namespace GW2_SCT {
 		bool showCombinedHitCount = true;
 		ScrollAreaOutlineState outlineState = ScrollAreaOutlineState::NONE;
 		ObservableVector<std::shared_ptr<message_receiver_options_struct>> receivers = {};
+		bool abbreviateSkillNames = false;
+		int  shortenNumbersPrecision = -1;  // -1 = off; 0..3 precision
+		bool disableCombining = false;
 	};
 	void to_json(nlohmann::json& j, const scroll_area_options_struct& p);
 	void from_json(const nlohmann::json& j, scroll_area_options_struct& p);
@@ -121,6 +125,8 @@ namespace GW2_SCT {
 		std::vector<std::string> assignedFilterSets = {};
 		bool filtersEnabled = true;
 		bool transient_showCombinedHitCount = true;
+		bool transient_abbreviateSkillNames = false;
+		int  transient_numberShortPrecision = -1;
 
 		// TODO: relocate this
 		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {

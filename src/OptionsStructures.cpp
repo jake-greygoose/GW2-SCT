@@ -243,9 +243,12 @@ namespace GW2_SCT {
         return static_cast<ScrollAreaOutlineState>(i);
     }
 
+    // --- scroll_area_options_struct JSON ---
+
     void to_json(nlohmann::json& j, const scroll_area_options_struct& p) {
         j = nlohmann::json{};
         j["name"] = p.name;
+        j["enabled"] = p.enabled;
         j["offsetX"] = p.offsetX;
         j["offsetY"] = p.offsetY;
         j["width"] = p.width;
@@ -253,9 +256,30 @@ namespace GW2_SCT {
         j["textAlign"] = textAlignToInt(p.textAlign);
         j["textCurve"] = textCurveToInt(p.textCurve);
         j["scrollDirection"] = scrollDirectionToInt(p.scrollDirection);
+        j["abbreviateSkillNames"] = p.abbreviateSkillNames;
+        j["shortenNumbersPrecision"] = p.shortenNumbersPrecision;
+        j["disableCombining"] = p.disableCombining;
         j["showCombinedHitCount"] = p.showCombinedHitCount;
         j["receivers"] = p.receivers;
     }
+
+    void from_json(const nlohmann::json& j, scroll_area_options_struct& p) {
+        if (j.contains("name")) j.at("name").get_to(p.name);
+        if (j.contains("enabled")) j.at("enabled").get_to(p.enabled);
+        if (j.contains("offsetX")) j.at("offsetX").get_to(p.offsetX);
+        if (j.contains("offsetY")) j.at("offsetY").get_to(p.offsetY);
+        if (j.contains("width")) j.at("width").get_to(p.width);
+        if (j.contains("height")) j.at("height").get_to(p.height);
+        if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
+        if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
+        if (j.contains("scrollDirection")) { int v{}; j.at("scrollDirection").get_to(v); p.scrollDirection = intToScrollDirection(v); }
+        if (j.contains("abbreviateSkillNames")) j.at("abbreviateSkillNames").get_to(p.abbreviateSkillNames);
+        if (j.contains("shortenNumbersPrecision")) j.at("shortenNumbersPrecision").get_to(p.shortenNumbersPrecision);
+        if (j.contains("disableCombining")) j.at("disableCombining").get_to(p.disableCombining);
+        if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
+        if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
+    }
+
 
     void from_json(const nlohmann::json& j, scroll_area_options_struct& p) {
         if (j.contains("name")) j.at("name").get_to(p.name);
