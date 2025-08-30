@@ -152,41 +152,51 @@ std::string AbbreviateSkillName(const std::string& skillName) {
 }
 
 std::string ShortenNumber(double number, int precision) {
-	// Handle invalid numbers
-	if (std::isnan(number) || std::isinf(number)) {
+	if (std::isnan(number) || std::isinf(number) || number < 0) {
 		return "0";
 	}
+	if (precision == -1) {
+		return std::to_string(static_cast<long long>(std::round(number)));
+	}
 
-	// Create format string for precision
-	std::ostringstream formatStream;
-	formatStream << "%." << precision << "f";
-	std::string format = formatStream.str();
+	precision = std::max(0, std::min(3, precision));
 
-	char buffer[32];
+	auto cleanDecimal = [](std::string str) -> std::string {
+		if (str.find('.') != std::string::npos) {
+			str.erase(str.find_last_not_of('0') + 1);
+			if (str.back() == '.') {
+				str.pop_back();
+			}
+		}
+		return str;
+		};
+
+	auto formatValue = [&cleanDecimal](double value, const std::string& suffix, int prec) -> std::string {
+		std::ostringstream oss;
+		oss << std::fixed << std::setprecision(prec) << value;
+		return cleanDecimal(oss.str()) + suffix;
+		};
 
 	if (number >= 1e12) {
-		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e12);
-		return std::string(buffer) + "T";
+		return formatValue(number / 1e12, "T", precision);
 	}
 	else if (number >= 1e9) {
-		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e9);
-		return std::string(buffer) + "G";
+		return formatValue(number / 1e9, "B", precision);
 	}
 	else if (number >= 1e6) {
-		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e6);
-		return std::string(buffer) + "M";
+		return formatValue(number / 1e6, "M", precision);
 	}
 	else if (number >= 1e3) {
-		snprintf(buffer, sizeof(buffer), format.c_str(), number / 1e3);
-		return std::string(buffer) + "k";
+		return formatValue(number / 1e3, "k", precision);
 	}
 	else {
 		if (precision == 0) {
-			return std::to_string(static_cast<int>(number));
+			return std::to_string(static_cast<int>(std::round(number)));
 		}
 		else {
-			snprintf(buffer, sizeof(buffer), format.c_str(), number);
-			return std::string(buffer);
+			std::ostringstream oss;
+			oss << std::fixed << std::setprecision(precision) << number;
+			return cleanDecimal(oss.str());
 		}
 	}
 }
