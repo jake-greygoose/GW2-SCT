@@ -52,6 +52,9 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 					oldProfile->scrollAreaOptions.removeOnEraseCallback(currentScrollAreaEraseCallbackId);
 				}
 			}
+			if (newProfile) {
+				defaultFont = getFontType(newProfile->masterFont, false);
+			}
 			resetScrollAreas(newProfile);
 		});
 
