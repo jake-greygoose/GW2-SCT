@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <vector>
 #include <regex>
+#include <algorithm>
 #include "json.hpp"
 #include "Common.h"
 #include "SimpleIni.h"
@@ -571,67 +572,103 @@ void GW2_SCT::Options::paintScrollAreas() {
 				}
 			}
 
-			if (ImGui::InputText((std::string(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Scroll_Areas_Name)) + "##scroll-area-name").c_str(), &scrollAreaOptions->name)) {
+			if (ImGui::Checkbox(scrollAreaOptions->enabled ? "Scroll area enabled" : "Scroll area disabled", &scrollAreaOptions->enabled)) {
+				requestSave();
+			}
+			
+			ImGui::Text("Name:");
+			ImGui::SameLine();
+			if (ImGui::InputText("##scroll-area-name", &scrollAreaOptions->name)) {
 				requestSave();
 			}
 
 			ImGui::Separator();
 
-			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Horizontal_Offset), &scrollAreaOptions->offsetX, 1.f, -windowWidth / 2.f, windowWidth / 2.f)) {
+			ImGui::Columns(2, "position_columns", false);
+			ImGui::SetColumnWidth(0, 150);
+			
+			ImGui::Text("Horizontal Offset");
+			ImGui::NextColumn();
+			if (ImGui::InputFloat("##horizontal_offset", &scrollAreaOptions->offsetX, 1.0f, 10.0f)) {
+				scrollAreaOptions->offsetX = std::clamp(scrollAreaOptions->offsetX, -windowWidth / 2.f, windowWidth / 2.f);
 				requestSave();
 			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Vertical Offset");
+			ImGui::NextColumn();
+			if (ImGui::InputFloat("##vertical_offset", &scrollAreaOptions->offsetY, 1.0f, 10.0f)) {
+				scrollAreaOptions->offsetY = std::clamp(scrollAreaOptions->offsetY, -windowHeight / 2.f, windowHeight / 2.f);
+				requestSave();
+			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Width");
+			ImGui::NextColumn();
+			if (ImGui::InputFloat("##width", &scrollAreaOptions->width, 1.0f, 10.0f)) {
+				scrollAreaOptions->width = std::clamp(scrollAreaOptions->width, 1.f, (float)windowWidth);
+				requestSave();
+			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Height");
+			ImGui::NextColumn();
+			if (ImGui::InputFloat("##height", &scrollAreaOptions->height, 1.0f, 10.0f)) {
+				scrollAreaOptions->height = std::clamp(scrollAreaOptions->height, 1.f, (float)windowHeight);
+				requestSave();
+			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Text Align");
+			ImGui::NextColumn();
+			if (ImGui::Combo("##text_align", (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
+				requestSave();
+			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Text Flow");
+			ImGui::NextColumn();
+			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
+				requestSave();
+			}
+			ImGui::NextColumn();
+			
+			ImGui::Text("Scroll Direction");
+			ImGui::NextColumn();
+			if (ImGui::Combo("##scroll_direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
+				requestSave();
+			}
+			
+			ImGui::Columns(1);
 
-			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Vertical_Offset), &scrollAreaOptions->offsetY, 1.f, -windowHeight / 2.f, windowHeight / 2.f)) {
-				requestSave();
-			}
-
-			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Width), &scrollAreaOptions->width, 1.f, 1.f, (float)windowWidth)) {
-				requestSave();
-			}
-
-			if (ImGui::ClampingDragFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Height), &scrollAreaOptions->height, 1.f, 1.f, (float)windowHeight)) {
-				requestSave();
-			}
-
-			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Align), (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
-				requestSave();
-			}
-
-			if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Text_Flow), (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
-				requestSave();
-			}
-
-			if (ImGui::Combo("Scroll Direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
-				requestSave();
-			}
-			if (ImGui::Checkbox("Enabled", &scrollAreaOptions->enabled)) {
-				requestSave();
-			}
-			if (ImGui::Checkbox("Abbreviate skill names", &scrollAreaOptions->abbreviateSkillNames)) {
-				requestSave();
-			}
-			{
-				bool shortenOn = scrollAreaOptions->shortenNumbersPrecision >= 0;
-				if (ImGui::Checkbox("Shorten numbers", &shortenOn)) {
-					scrollAreaOptions->shortenNumbersPrecision = shortenOn ? 1 : -1; // default to 1 dp when enabling
+			// Advanced Options - collapsible section
+			if (ImGui::CollapsingHeader("Advanced Options")) {
+				if (ImGui::Checkbox("Abbreviate skill names", &scrollAreaOptions->abbreviateSkillNames)) {
 					requestSave();
 				}
-				ImGui::SameLine();
-				if (!shortenOn) ImGui::BeginDisabled();
-				ImGui::SetNextItemWidth(90);
-				int prec = (scrollAreaOptions->shortenNumbersPrecision < 0 ? 0 : scrollAreaOptions->shortenNumbersPrecision);
-				if (ImGui::DragInt("digits", &prec, 1.0f, 0, 3)) {
-					if (prec < 0) prec = 0; if (prec > 3) prec = 3;
-					scrollAreaOptions->shortenNumbersPrecision = prec;
+				{
+					bool shortenOn = scrollAreaOptions->shortenNumbersPrecision >= 0;
+					if (ImGui::Checkbox("Shorten numbers", &shortenOn)) {
+						scrollAreaOptions->shortenNumbersPrecision = shortenOn ? 1 : -1; // default to 1 dp when enabling
+						requestSave();
+					}
+					ImGui::SameLine();
+					if (!shortenOn) ImGui::BeginDisabled();
+					ImGui::SetNextItemWidth(90);
+					int prec = (scrollAreaOptions->shortenNumbersPrecision < 0 ? 0 : scrollAreaOptions->shortenNumbersPrecision);
+					if (ImGui::DragInt("digits", &prec, 1.0f, 0, 3)) {
+						if (prec < 0) prec = 0; if (prec > 3) prec = 3;
+						scrollAreaOptions->shortenNumbersPrecision = prec;
+						requestSave();
+					}
+					if (!shortenOn) ImGui::EndDisabled();
+				}
+				if (ImGui::Checkbox("Disable message combining", &scrollAreaOptions->disableCombining)) {
 					requestSave();
 				}
-				if (!shortenOn) ImGui::EndDisabled();
-			}
-			if (ImGui::Checkbox("Disable message combining", &scrollAreaOptions->disableCombining)) {
-				requestSave();
-			}
-			if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
-				requestSave();
+				if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
+					requestSave();
+				}
 			}
 
 			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
