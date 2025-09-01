@@ -658,7 +658,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			}
 			ImGui::NextColumn();
 			
-			ImGui::Text("Scroll Direction");
+			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Scroll_Direction));
 			ImGui::NextColumn();
 			if (ImGui::Combo("##scroll_direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
 				requestSave();
@@ -667,8 +667,8 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			ImGui::Columns(1);
 
 			// Advanced Options - collapsible section
-			if (ImGui::CollapsingHeader("Advanced Options")) {
-				if (ImGui::Checkbox("Abbreviate skill names", &scrollAreaOptions->abbreviateSkillNames)) {
+			if (ImGui::CollapsingHeader(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Advanced_Options))) {
+				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Abbreviate_Skill_Names), &scrollAreaOptions->abbreviateSkillNames)) {
 					requestSave();
 				}
 				{
@@ -678,7 +678,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					if (currentSelection > 4) currentSelection = 4;
 					
 					ImGui::SetNextItemWidth(120);
-					if (ImGui::Combo("Shorten numbers", &currentSelection, precisionOptions, IM_ARRAYSIZE(precisionOptions))) {
+					if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Shorten_Numbers), &currentSelection, precisionOptions, IM_ARRAYSIZE(precisionOptions))) {
 						scrollAreaOptions->shortenNumbersPrecision = currentSelection - 1;
 						requestSave();
 					}
@@ -698,15 +698,15 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					}
 					ImGui::PopStyleColor();
 				}
-				if (ImGui::Checkbox("Disable message combining", &scrollAreaOptions->disableCombining)) {
+				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Disable_Message_Combining), &scrollAreaOptions->disableCombining)) {
 					requestSave();
 				}
-				if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
+				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Show_Combined_Hit_Count), &scrollAreaOptions->showCombinedHitCount)) {
 					requestSave();
 				}
 				{
 					bool useCustomSpeed = scrollAreaOptions->customScrollSpeed > 0.0f;
-					if (ImGui::Checkbox("Custom scroll speed", &useCustomSpeed)) {
+					if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Custom_Scroll_Speed), &useCustomSpeed)) {
 						scrollAreaOptions->customScrollSpeed = useCustomSpeed ? 90.0f : -1.0f;
 						requestSave();
 					}

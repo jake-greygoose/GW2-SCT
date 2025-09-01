@@ -112,7 +112,16 @@
     "Delete_Confirmation_Title": "Delete?",
     "Delete_Confirmation_Content": "Are you sure you want to delete this scroll area?\nAll receivers registered within this scroll area\nwill be deleted aswell.\n\n",
     "Delete_Confirmation_Confirmation": "OK",
-    "Delete_Confirmation_Cancel": "Cancel"
+    "Delete_Confirmation_Cancel": "Cancel",
+    "Custom_Scroll_Speed": "Custom scroll speed",
+    "Custom_Scroll_Speed_Tooltip": "Override the global scroll speed for this scroll area",
+    "Shorten_Numbers": "Shorten numbers",
+    "Shorten_Numbers_Precision": "Number precision",
+    "Abbreviate_Skill_Names": "Abbreviate skill names",
+    "Show_Combined_Hit_Count": "Show combined hit count",
+    "Disable_Message_Combining": "Disable message combining",
+    "Scroll_Direction": "Scroll Direction",
+    "Advanced_Options": "Advanced Options"
   },
   "Receiver_Option_UI": {
     "Template": "Template",

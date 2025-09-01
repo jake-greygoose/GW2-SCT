@@ -238,4 +238,13 @@
   F(Stop_Recording,)\
   F(Start_Emitting,)\
   F(Stop_Emitting,)\
-  F(Clear_Recorded_Messages,)
+  F(Clear_Recorded_Messages,)\
+  F(Custom_Scroll_Speed,)\
+  F(Custom_Scroll_Speed_Tooltip,)\
+  F(Shorten_Numbers,)\
+  F(Shorten_Numbers_Precision,)\
+  F(Abbreviate_Skill_Names,)\
+  F(Show_Combined_Hit_Count,)\
+  F(Disable_Message_Combining,)\
+  F(Scroll_Direction,)\
+  F(Advanced_Options,)
