@@ -174,7 +174,8 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 	if (getFilesInDirectory(iconPath, files)) {
 		for (std::string iconFile : files) {
 			size_t itDot = iconFile.find_last_of(".");
-			if (iconFile.substr(itDot + 1) == "jpg") {
+			std::string extension = iconFile.substr(itDot + 1);
+			if (extension == "jpg" || extension == "png") {
 				std::string fileName = iconFile.substr(0, itDot);
 				uint32_t skillID = std::strtoul(fileName.c_str(), NULL, 10);
 				if (skillID != 0) {
@@ -258,7 +259,8 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					auto it = skillJsonValues.find(curSkillId);
 					std::string iniVal = it == skillJsonValues.end() ? "" : it->second;
 					std::string curImagePath = iconPath + std::to_string(curSkillId) + ".jpg";
-					if (iniVal.compare(desc) != 0 || !std::filesystem::exists(curImagePath.c_str())) {
+					std::string curImagePathPng = iconPath + std::to_string(curSkillId) + ".png";
+					if (iniVal.compare(desc) != 0 || (!std::filesystem::exists(curImagePath.c_str()) && !std::filesystem::exists(curImagePathPng.c_str()))) {
 						std::this_thread::sleep_for(std::chrono::milliseconds(60000 / requestsPerMinute));
 						LOG("Downloading skill icon: ", curSkillId);
 						std::ofstream fileStream(curImagePath, std::ofstream::binary);
