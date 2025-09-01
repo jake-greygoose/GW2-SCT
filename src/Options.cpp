@@ -2,17 +2,17 @@
 #include <sstream>
 #include <iomanip>
 #include <vector>
-#include <regex>
 #include <algorithm>
+#include <cstdio>
 #include "json.hpp"
 #include "Common.h"
-#include "SimpleIni.h"
 #include "imgui.h"
 #include "imgui_stdlib.h"
 #include "imgui_sct_widgets.h"
 #include "TemplateInterpreter.h"
 #include "Language.h"
 #include "SkillFilterStructures.h"
+#include "ScrollArea.h"
 
 const char* TextAlignTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Align_Left), langStringG(GW2_SCT::LanguageKey::Text_Align_Center), langStringG(GW2_SCT::LanguageKey::Text_Align_Right) };
 const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right) };
@@ -34,6 +34,12 @@ std::string GW2_SCT::Options::currentCharacterName = "";
 std::chrono::steady_clock::time_point GW2_SCT::Options::lastSaveRequest = std::chrono::steady_clock::now();
 bool GW2_SCT::Options::saveRequested = false;
 const std::chrono::milliseconds GW2_SCT::Options::SAVE_DELAY(500);
+
+static bool inScrollAreasTab = false;
+
+bool GW2_SCT::Options::isInScrollAreasTab() {
+	return windowIsOpen && inScrollAreasTab;
+}
 
 const std::map<GW2_SCT::MessageCategory, std::string> messageCategorySections = {
 	{ GW2_SCT::MessageCategory::PLAYER_OUT, "Messages_Player_Out" },
@@ -190,7 +196,7 @@ void GW2_SCT::Options::open() {
 	windowIsOpen = true;
 }
 
-void GW2_SCT::Options::paint() {
+void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
 
 	processPendingSave();
 
@@ -203,36 +209,40 @@ void GW2_SCT::Options::paint() {
 		if (ImGui::BeginTabBar("##options-tab-bar", tab_bar_flags))
 		{
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_General))) {
+				inScrollAreasTab = false;
 				paintGeneral();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Scroll_Areas))) {
-				paintScrollAreas();
-				if (!windowIsOpen) {
+				inScrollAreasTab = true;
+				paintScrollAreas(scrollAreas);
+				ImGui::EndTabItem();
+			}
+			else {
+				if (inScrollAreasTab) {
+					inScrollAreasTab = false;
 					for (auto scrollAreaOptions : profile->scrollAreaOptions) {
 						if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
 					}
 				}
-				ImGui::EndTabItem();
-			}
-			else {
-				for (auto scrollAreaOptions : profile->scrollAreaOptions) {
-					if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
-				}
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Profession_Colors))) {
+				inScrollAreasTab = false;
 				paintProfessionColors();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Filtered_Skills))) {
+				inScrollAreasTab = false;
 				paintSkillFilters();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Skill_Icons))) {
+				inScrollAreasTab = false;
 				paintSkillIcons();
 				ImGui::EndTabItem();
 			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Profiles))) {
+				inScrollAreasTab = false;
 				paintProfiles();
 				ImGui::EndTabItem();
 			}
@@ -242,6 +252,19 @@ void GW2_SCT::Options::paint() {
 		ImGui::End();
 		ImGui::PopStyleVar();
 		ImGui::PopStyleColor();
+	}
+	else {
+		inScrollAreasTab = false;
+		bool stateWasChanged = false;
+		for (auto scrollAreaOptions : profile->scrollAreaOptions) {
+			if (scrollAreaOptions->outlineState != ScrollAreaOutlineState::NONE) {
+				scrollAreaOptions->outlineState = ScrollAreaOutlineState::NONE;
+				stateWasChanged = true;
+			}
+		}
+		if (stateWasChanged) {
+			save();
+		}
 	}
 }
 
@@ -338,7 +361,6 @@ void GW2_SCT::Options::loadProfile(std::string characterName) {
 }
 
 namespace GW2_SCT {
-	// Helper function to initialize a profile with default settings
 	void initProfileWithDefaults(std::shared_ptr<profile_options_struct> p) {
 		p->scrollAreaOptions.clear();
 
@@ -353,7 +375,7 @@ namespace GW2_SCT {
 		incomingStruct->textCurve = TextCurve::LEFT;
 		incomingStruct->scrollDirection = ScrollDirection::DOWN;
 
-		// persisted toggles (old + new)
+		// persisted toggles
 		incomingStruct->showCombinedHitCount = true;
 		incomingStruct->enabled = true;
 		incomingStruct->abbreviateSkillNames = false;
@@ -386,7 +408,7 @@ namespace GW2_SCT {
 		outgoingStruct->textCurve = TextCurve::RIGHT;
 		outgoingStruct->scrollDirection = ScrollDirection::DOWN;
 
-		// persisted toggles (old + new)
+		// persisted toggles
 		outgoingStruct->showCombinedHitCount = true;
 		outgoingStruct->enabled = true;
 		outgoingStruct->abbreviateSkillNames = false;
@@ -474,7 +496,7 @@ void GW2_SCT::Options::paintGeneral() {
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Out_Only_For_Target_Toolip));
 }
 
-void GW2_SCT::Options::paintScrollAreas() {
+void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
 	const float square_size = ImGui::GetFontSize();
 	ImGuiStyle style = ImGui::GetStyle();
 
@@ -559,7 +581,7 @@ void GW2_SCT::Options::paintScrollAreas() {
 	// Right
 	{
 		ImGui::BeginGroup();
-		ImGui::BeginChild("scroll area details", ImVec2(0, -ImGui::GetFrameHeightWithSpacing())); // Leave room for 1 line below us
+		ImGui::BeginChild("scroll area details", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()));
 		if (selectedScrollArea >= 0 && selectedScrollArea < profile->scrollAreaOptions.size()) {
 			std::shared_ptr<scroll_area_options_struct> scrollAreaOptions = profile->scrollAreaOptions[selectedScrollArea];
 
@@ -709,7 +731,133 @@ void GW2_SCT::Options::paintScrollAreas() {
 	}
 }
 
+void GW2_SCT::Options::paintScrollAreaOverlay(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas) {
+	if (!windowIsOpen || !inScrollAreasTab) return;
 
+	ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+	ImGui::SetNextWindowSize(ImVec2((float)windowWidth, (float)windowHeight));
+	ImGuiWindowFlags drawFlags =
+		ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoScrollbar |
+		ImGuiWindowFlags_NoBackground |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_NoBringToFrontOnFocus |
+		ImGuiWindowFlags_NoInputs;
+
+	ImGui::Begin("##ScrollAreaOverlay_Draw", nullptr, drawFlags);
+
+	struct Rect {
+		std::shared_ptr<scroll_area_options_struct> opt;
+		ImVec2 pos;
+		ImVec2 size;
+	};
+
+	std::vector<Rect> rects;
+	rects.reserve(scrollAreas.size());
+
+	ImDrawList* dl = ImGui::GetWindowDrawList();
+
+	for (auto& sa : scrollAreas) {
+		auto o = sa->getOptions();
+		if (!o) continue;
+		if (o->outlineState == ScrollAreaOutlineState::NONE) continue;
+
+		const float x = windowWidth * 0.5f + o->offsetX;
+		const float y = windowHeight * 0.5f + o->offsetY;
+		const float w = o->width;
+		const float h = o->height;
+
+		rects.push_back(Rect{ o, ImVec2(x, y), ImVec2(w, h) });
+
+		const bool full = (o->outlineState == ScrollAreaOutlineState::FULL);
+		const ImU32 fillCol = ImGui::GetColorU32(full ? ImVec4(0.15f, 0.15f, 0.15f, 0.66f)
+			: ImVec4(0.15f, 0.15f, 0.15f, 0.33f));
+		const ImU32 rectCol = ImGui::GetColorU32(full ? ImVec4(1.00f, 1.00f, 1.00f, 0.66f)
+			: ImVec4(1.00f, 1.00f, 1.00f, 0.33f));
+		const ImU32 textCol = ImGui::GetColorU32(full ? ImVec4(1.00f, 1.00f, 1.00f, 0.90f)
+			: ImVec4(1.00f, 1.00f, 1.00f, 0.50f));
+
+		dl->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), fillCol);
+		dl->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), rectCol);
+
+		if (!o->name.empty()) {
+			ImVec2 name_sz = ImGui::CalcTextSize(o->name.c_str());
+			dl->AddText(ImVec2(x + (w - name_sz.x) * 0.5f, y + (h - name_sz.y) * 0.5f), textCol, o->name.c_str());
+		}
+
+		char buf[64];
+		std::snprintf(buf, sizeof(buf), "X: %.0f, Y: %.0f", o->offsetX, o->offsetY);
+		ImVec2 off_sz = ImGui::CalcTextSize(buf);
+		dl->AddText(ImVec2(x + (w - off_sz.x) * 0.5f, y + 5.0f), textCol, buf);
+	}
+
+	ImGui::End();
+
+	static std::shared_ptr<scroll_area_options_struct> dragged = nullptr;
+	static ImVec2 dragStartMouse(0.0f, 0.0f);
+	static ImVec2 dragStartOffset(0.0f, 0.0f);
+
+	for (const Rect& r : rects) {
+		if (!r.opt || r.opt->outlineState != ScrollAreaOutlineState::FULL)
+			continue;
+
+		ImGui::SetNextWindowPos(r.pos);
+		ImGui::SetNextWindowSize(r.size);
+		ImGuiWindowFlags hitFlags =
+			ImGuiWindowFlags_NoTitleBar |
+			ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoBringToFrontOnFocus |
+			ImGuiWindowFlags_NoBackground |
+			ImGuiWindowFlags_NoFocusOnAppearing;
+
+		char winName[64];
+		std::snprintf(winName, sizeof(winName), "##ScrollAreaHit_%p", (void*)r.opt.get());
+
+		ImGui::Begin(winName, nullptr, hitFlags);
+
+		const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_None);
+
+		ImGuiIO& io = ImGui::GetIO();
+
+		if (!dragged && hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+			dragged = r.opt;
+			dragStartMouse = io.MousePos;
+			dragStartOffset = ImVec2(r.opt->offsetX, r.opt->offsetY);
+		}
+
+		if (dragged == r.opt) {
+			const float dx = io.MousePos.x - dragStartMouse.x;
+			const float dy = io.MousePos.y - dragStartMouse.y;
+
+			r.opt->offsetX = dragStartOffset.x + dx;
+			r.opt->offsetY = dragStartOffset.y + dy;
+
+			const float minX = -windowWidth * 0.5f;
+			const float maxX = windowWidth * 0.5f - r.size.x;
+			const float minY = -windowHeight * 0.5f;
+			const float maxY = windowHeight * 0.5f - r.size.y;
+
+			r.opt->offsetX = std::max(minX, std::min(r.opt->offsetX, maxX));
+			r.opt->offsetY = std::max(minY, std::min(r.opt->offsetY, maxY));
+
+			requestSave();
+
+			if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+				dragged = nullptr;
+			}
+		}
+
+		if (hovered || dragged == r.opt)
+			ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+
+		ImGui::End();
+	}
+}
 
 bool drawColorSelector(const char* name, std::string& color) {
 	int num = std::stoi(color, 0, 16);

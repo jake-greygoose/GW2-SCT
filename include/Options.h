@@ -7,13 +7,15 @@
 #include "OptionsStructures.h"
 
 namespace GW2_SCT {
+	class ScrollArea;
+
 	std::map<char, std::string> mapParameterListToLanguage(const char* section, std::vector<char> list);
 
 	class Options {
 	public:
 		static const std::shared_ptr<profile_options_struct> get() { return profile.operator std::shared_ptr<profile_options_struct>(); }
 		static ObservableValue<std::shared_ptr<profile_options_struct>> profile;
-		static void paint();
+		static void paint(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 		static void open();
 		static void save();
 		static void load();
@@ -25,10 +27,12 @@ namespace GW2_SCT {
 		static std::string getFontSizeTypeSelectionString() { return fontSizeTypeSelectionString; };
 		static std::string getSkillFilterTypeSelectionString() { return skillFilterTypeSelectionString; };
 		static bool isOptionsWindowOpen();
+		static bool isInScrollAreasTab();
+		static void paintScrollAreaOverlay(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 	private:
 		static void setDefault();
 		static void paintGeneral();
-		static void paintScrollAreas();
+		static void paintScrollAreas(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 		static void paintProfessionColors();
 		static void paintSkillFilters();
 		static void paintSkillIcons();

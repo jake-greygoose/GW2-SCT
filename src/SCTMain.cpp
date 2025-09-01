@@ -359,7 +359,8 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	FontType::ensureAtlasCreation();
 
 	// Options
-	Options::paint();
+	Options::paint(scrollAreas);
+	Options::paintScrollAreaOverlay(scrollAreas);
 	ExampleMessageOptions::paint();
 	if (Options::get()->sctEnabled) {
 		ImVec2 windowSize((float)windowWidth, (float)windowHeight);
