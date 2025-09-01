@@ -669,21 +669,31 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					requestSave();
 				}
 				{
-					bool shortenOn = scrollAreaOptions->shortenNumbersPrecision >= 0;
-					if (ImGui::Checkbox("Shorten numbers", &shortenOn)) {
-						scrollAreaOptions->shortenNumbersPrecision = shortenOn ? 1 : -1; // default to 1 dp when enabling
+					const char* precisionOptions[] = { "Off", "0 digits", "1 digit", "2 digits", "3 digits" };
+					int currentSelection = scrollAreaOptions->shortenNumbersPrecision + 1;
+					if (currentSelection < 0) currentSelection = 0;
+					if (currentSelection > 4) currentSelection = 4;
+					
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::Combo("Shorten numbers", &currentSelection, precisionOptions, IM_ARRAYSIZE(precisionOptions))) {
+						scrollAreaOptions->shortenNumbersPrecision = currentSelection - 1;
 						requestSave();
 					}
+					
 					ImGui::SameLine();
-					if (!shortenOn) ImGui::BeginDisabled();
-					ImGui::SetNextItemWidth(90);
-					int prec = (scrollAreaOptions->shortenNumbersPrecision < 0 ? 0 : scrollAreaOptions->shortenNumbersPrecision);
-					if (ImGui::DragInt("digits", &prec, 1.0f, 0, 3)) {
-						if (prec < 0) prec = 0; if (prec > 3) prec = 3;
-						scrollAreaOptions->shortenNumbersPrecision = prec;
-						requestSave();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					if (currentSelection == 0) {
+						ImGui::Text("(off)");
+					} else if (currentSelection == 1) {
+						ImGui::Text("(1234 -> 1k)");
+					} else if (currentSelection == 2) {
+						ImGui::Text("(1234 -> 1.2k)");
+					} else if (currentSelection == 3) {
+						ImGui::Text("(1234 -> 1.23k)");
+					} else if (currentSelection == 4) {
+						ImGui::Text("(1234 -> 1.234k)");
 					}
-					if (!shortenOn) ImGui::EndDisabled();
+					ImGui::PopStyleColor();
 				}
 				if (ImGui::Checkbox("Disable message combining", &scrollAreaOptions->disableCombining)) {
 					requestSave();
