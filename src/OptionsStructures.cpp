@@ -258,6 +258,7 @@ namespace GW2_SCT {
         j["shortenNumbersPrecision"] = p.shortenNumbersPrecision;
         j["disableCombining"] = p.disableCombining;
         j["showCombinedHitCount"] = p.showCombinedHitCount;
+        j["customScrollSpeed"] = p.customScrollSpeed;
         j["receivers"] = p.receivers;
     }
 
@@ -275,6 +276,7 @@ namespace GW2_SCT {
         if (j.contains("shortenNumbersPrecision")) j.at("shortenNumbersPrecision").get_to(p.shortenNumbersPrecision);
         if (j.contains("disableCombining")) j.at("disableCombining").get_to(p.disableCombining);
         if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
+        if (j.contains("customScrollSpeed")) j.at("customScrollSpeed").get_to(p.customScrollSpeed);
         if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
     }
 

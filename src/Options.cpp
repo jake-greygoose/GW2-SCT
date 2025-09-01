@@ -381,6 +381,7 @@ namespace GW2_SCT {
 		incomingStruct->abbreviateSkillNames = false;
 		incomingStruct->shortenNumbersPrecision = -1;  // off
 		incomingStruct->disableCombining = false;
+		incomingStruct->customScrollSpeed = -1.0f;  // use global
 
 		// runtime UI outline
 		incomingStruct->outlineState = ScrollAreaOutlineState::NONE;
@@ -414,6 +415,7 @@ namespace GW2_SCT {
 		outgoingStruct->abbreviateSkillNames = false;
 		outgoingStruct->shortenNumbersPrecision = -1;  // off
 		outgoingStruct->disableCombining = false;
+		outgoingStruct->customScrollSpeed = -1.0f;  // use global
 
 		// runtime UI outline
 		outgoingStruct->outlineState = ScrollAreaOutlineState::NONE;
@@ -568,6 +570,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			newArea.abbreviateSkillNames = false;
 			newArea.shortenNumbersPrecision = -1;
 			newArea.disableCombining = false;
+			newArea.customScrollSpeed = -1.0f;  // use global
 
 			profile->scrollAreaOptions.push_back(std::make_shared<scroll_area_options_struct>(newArea));
 			selectedScrollArea = -1;
@@ -700,6 +703,31 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 				}
 				if (ImGui::Checkbox("Show combined hit count", &scrollAreaOptions->showCombinedHitCount)) {
 					requestSave();
+				}
+				{
+					bool useCustomSpeed = scrollAreaOptions->customScrollSpeed > 0.0f;
+					if (ImGui::Checkbox("Custom scroll speed", &useCustomSpeed)) {
+						scrollAreaOptions->customScrollSpeed = useCustomSpeed ? 90.0f : -1.0f;
+						requestSave();
+					}
+					ImGui::SameLine();
+					if (!useCustomSpeed) ImGui::BeginDisabled();
+					ImGui::SetNextItemWidth(120);
+					float speed = (scrollAreaOptions->customScrollSpeed > 0.0f ? scrollAreaOptions->customScrollSpeed : 90.0f);
+					if (ImGui::ClampingDragFloat("##customspeed", &speed, 1.0f, 1.0f, 2000.0f)) {
+						scrollAreaOptions->customScrollSpeed = speed;
+						requestSave();
+					}
+					if (!useCustomSpeed) ImGui::EndDisabled();
+					
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					if (!useCustomSpeed) {
+						ImGui::Text("(uses global: %.0f)", Options::get()->scrollSpeed);
+					} else {
+						ImGui::Text("(%.0f px/s)", scrollAreaOptions->customScrollSpeed);
+					}
+					ImGui::PopStyleColor();
 				}
 			}
 

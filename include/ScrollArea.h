@@ -40,6 +40,7 @@ namespace GW2_SCT {
 		std::deque<MessagePrerender> messageQueue = std::deque<MessagePrerender>();
 
 		bool paintMessage(MessagePrerender& m, __int64 time);
+		float getEffectiveScrollSpeed() const;
 
 		std::list<std::pair<MessagePrerender, std::chrono::time_point<std::chrono::system_clock>>> paintedMessages;
 

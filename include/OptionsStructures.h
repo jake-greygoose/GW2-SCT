@@ -106,8 +106,9 @@ namespace GW2_SCT {
 		ScrollAreaOutlineState outlineState = ScrollAreaOutlineState::NONE;
 		ObservableVector<std::shared_ptr<message_receiver_options_struct>> receivers = {};
 		bool abbreviateSkillNames = false;
-		int  shortenNumbersPrecision = -1;  // -1 = off; 0..3 precision
+		int  shortenNumbersPrecision = -1;
 		bool disableCombining = false;
+		float customScrollSpeed = -1.0f;
 	};
 	void to_json(nlohmann::json& j, const scroll_area_options_struct& p);
 	void from_json(const nlohmann::json& j, scroll_area_options_struct& p);

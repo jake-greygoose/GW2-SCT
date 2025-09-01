@@ -71,7 +71,7 @@ void GW2_SCT::ScrollArea::paint() {
 		}
 		else {
 			float spaceRequiredForNextMessage = getTextSize(m.str.c_str(), m.font, m.fontSize).y;
-			float msForSpaceToClear = spaceRequiredForNextMessage / Options::get()->scrollSpeed * 1000;
+			float msForSpaceToClear = spaceRequiredForNextMessage / getEffectiveScrollSpeed() * 1000;
 			__int64 msSinceLastPaintedMessage = duration_cast<milliseconds>(now - paintedMessages.back().second).count();
 			__int64 msUntilNextMessageCanBePainted = (__int64)msForSpaceToClear - msSinceLastPaintedMessage;
 			if (msUntilNextMessageCanBePainted > 0) {
@@ -104,7 +104,7 @@ void GW2_SCT::ScrollArea::paint() {
 }
 
 bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
-	float animatedHeight = time * 0.001f * Options::get()->scrollSpeed;
+	float animatedHeight = time * 0.001f * getEffectiveScrollSpeed();
 	float alpha = 1.f;
 	float percentage = animatedHeight / options->height;
 	float fadeLength = 0.2f;
@@ -252,4 +252,8 @@ void GW2_SCT::ScrollArea::MessagePrerender::prerenderText() {
 		interpretedTextWidth = interpretedText.back().offset.x + interpretedText.back().size.x;
 	}
 	prerenderNeeded = false;
+}
+
+float GW2_SCT::ScrollArea::getEffectiveScrollSpeed() const {
+	return (options->customScrollSpeed > 0.0f) ? options->customScrollSpeed : Options::get()->scrollSpeed;
 }
