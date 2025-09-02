@@ -28,8 +28,15 @@ nlohmann::json getJSON(std::string url, std::function<void(httplib::Headers)> ca
 	}
 }
 
+bool RemoveZoneIdentifier(const std::string& filepath) {
+	std::string zoneStream = filepath + ":Zone.Identifier";
+	return DeleteFileA(zoneStream.c_str()) != 0 || GetLastError() == ERROR_FILE_NOT_FOUND;
+}
+
 std::shared_ptr<std::vector<BYTE>> loadBinaryFileData(std::string filename) {
-	std::ifstream in(filename, std::ios::binary); //open file
+	RemoveZoneIdentifier(filename);
+	
+	std::ifstream in(filename, std::ios::binary);
 	in >> std::noskipws;     
 	
 	std::shared_ptr<std::vector<BYTE>> ret = std::make_shared<std::vector<BYTE>>(std::istream_iterator<BYTE>(in), std::istream_iterator<BYTE>());
@@ -502,7 +509,6 @@ void GW2_SCT::SkillIcon::createTextureNow(GW2_SCT::SkillIconDisplayType displayT
 
 	convertRGBAToARGBAndCull(image_data, image_width, image_height, displayType);
 
-	// Upload texture to graphics system
 	if (textures[displayType] != nullptr) ImmutableTexture::Release(textures[displayType]);
 	textures[displayType] = ImmutableTexture::Create(image_width, image_height, image_data);
 	if (textures[displayType] == nullptr) {
