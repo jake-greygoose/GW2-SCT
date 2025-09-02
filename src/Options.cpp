@@ -366,13 +366,13 @@ void GW2_SCT::Options::loadProfile(std::string characterName) {
 		if (profileMappingIterator == options.characterProfileMap.end()) {
 			if (currentProfileName != options.globalProfile) {
 				currentProfileName = options.globalProfile;
-				profile = options.profiles[currentProfileName];
+				requestProfileSwitch(options.profiles[currentProfileName]);
 			}
 		}
 		else {
 			if (currentProfileName != profileMappingIterator->second) {
 				currentProfileName = profileMappingIterator->second;
-				profile = options.profiles[currentProfileName];
+				requestProfileSwitch(options.profiles[currentProfileName]);
 			}
 		}
 	}
@@ -1271,9 +1271,60 @@ void GW2_SCT::Options::paintSkillIcons() {
 void GW2_SCT::Options::paintProfiles() {
 	bool doesCharacterMappingExist = currentCharacterName != "" && options.characterProfileMap.find(currentCharacterName) != options.characterProfileMap.end();
 
-	ImGui::TextWrapped(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Description));
+	ImGui::Spacing();
+	ImGui::Spacing();
 
-	if (ImGui::BeginCombo(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Master_Profile), "profile-combo").c_str(), options.globalProfile.c_str())) {
+	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.2f, 0.4f, 0.2f, 0.3f));
+	if (ImGui::BeginChild("ActiveProfileStatus", ImVec2(0, 120), true)) {
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 8.0f));
+		ImGui::Text("Currently Active Profile:");
+		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+		ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "%s", currentProfileName.c_str());
+		ImGui::PopFont();
+		
+		if (currentCharacterName != "") {
+			if (doesCharacterMappingExist) {
+				ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.4f, 1.0f), "Source: Character Override (%s)", currentCharacterName.c_str());
+			} else {
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Source: Default Profile (%s)", currentCharacterName.c_str());
+			}
+		} else {
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Source: Default Profile (No Character)");
+		}
+		
+		auto currentProfile = profile.operator std::shared_ptr<profile_options_struct>();
+		if (currentProfile && !currentProfile->scrollAreaOptions.empty()) {
+			ImGui::Spacing();
+			ImGui::Text("Scroll Areas (%d):", (int)currentProfile->scrollAreaOptions.size());
+			ImGui::Indent();
+			for (auto& area : currentProfile->scrollAreaOptions) {
+				if (area->enabled) {
+					ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "• %s", area->name.c_str());
+				} else {
+					ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "• %s (disabled)", area->name.c_str());
+				}
+			}
+			ImGui::Unindent();
+		} else {
+			ImGui::Spacing();
+			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No scroll areas configured");
+		}
+		ImGui::PopStyleVar();
+	}
+	ImGui::EndChild();
+	ImGui::PopStyleColor();
+	
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	
+
+	ImGui::Text("Profile Management:");
+	ImGui::Spacing();
+
+	if (ImGui::BeginCombo("Default Profile:", options.globalProfile.c_str())) {
 		for (auto& nameAndProfile : options.profiles) {
 			if (ImGui::Selectable((nameAndProfile.first + "##profile-selectable").c_str())) {
 				if (options.globalProfile != nameAndProfile.first) {
@@ -1285,12 +1336,31 @@ void GW2_SCT::Options::paintProfiles() {
 					requestSave();
 				}
 			}
+			if (ImGui::IsItemHovered()) {
+				ImGui::BeginTooltip();
+				ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
+				ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
+				if (!nameAndProfile.second->scrollAreaOptions.empty()) {
+					ImGui::Separator();
+					for (auto& area : nameAndProfile.second->scrollAreaOptions) {
+						if (area->enabled) {
+							ImGui::Text("• %s", area->name.c_str());
+						} else {
+							ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "• %s", area->name.c_str());
+						}
+					}
+				}
+				ImGui::EndTooltip();
+			}
 		}
 		ImGui::EndCombo();
 	}
+	
+	ImGui::Spacing();
+	ImGui::Spacing();
+	
 	if (currentCharacterName != "") {
-		ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Character_Specific_Profile_Heading));
-		if (ImGui::Checkbox((std::string(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Character_Specific_Profile_Enabled)) + currentCharacterName).c_str(), &doesCharacterMappingExist)) {
+		if (ImGui::Checkbox("Character-Specific Override", &doesCharacterMappingExist)) {
 			if (doesCharacterMappingExist) {
 				options.characterProfileMap[currentCharacterName] = currentProfileName;
 			}
@@ -1301,10 +1371,13 @@ void GW2_SCT::Options::paintProfiles() {
 			}
 			requestSave();
 		}
+		
 		if (!doesCharacterMappingExist) {
 			ImGui::BeginDisabled();
 		}
-		if (ImGui::BeginCombo("##character-profile-combo", currentProfileName.c_str())) {
+		
+		ImGui::Indent();
+		if (ImGui::BeginCombo("Override Profile:", currentProfileName.c_str())) {
 			for (auto& nameAndProfile : options.profiles) {
 				if (ImGui::Selectable((nameAndProfile.first + "##character-profile-selectable").c_str())) {
 					currentProfileName = nameAndProfile.first;
@@ -1312,13 +1385,41 @@ void GW2_SCT::Options::paintProfiles() {
 					options.characterProfileMap[currentCharacterName] = currentProfileName;
 					requestSave();
 				}
+				if (ImGui::IsItemHovered()) {
+					ImGui::BeginTooltip();
+					ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
+					ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
+					if (!nameAndProfile.second->scrollAreaOptions.empty()) {
+						ImGui::Separator();
+						for (auto& area : nameAndProfile.second->scrollAreaOptions) {
+							if (area->enabled) {
+								ImGui::Text("• %s", area->name.c_str());
+							} else {
+								ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "• %s", area->name.c_str());
+							}
+						}
+					}
+					ImGui::EndTooltip();
+				}
 			}
 			ImGui::EndCombo();
 		}
+		ImGui::Unindent();
+		
 		if (!doesCharacterMappingExist) {
 			ImGui::EndDisabled();
 		}
+		
+		ImGui::Spacing();
 	}
+	
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	
+	ImGui::Text("Profile Actions:");
+	ImGui::Spacing();
+	
 	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Current_Profile_Heading));
 	bool currentProfileIsDefault = currentProfileName == defaultProfileName;
 	if (currentProfileIsDefault) {
@@ -1356,6 +1457,12 @@ void GW2_SCT::Options::paintProfiles() {
 	if (currentProfileIsDefault) {
 		ImGui::EndDisabled();
 	}
+	
+	ImGui::Spacing();
+	ImGui::Spacing();
+	
+	ImGui::Text("Manage Profiles:");
+	ImGui::Spacing();
 	if (ImGui::Button(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Create_Profile_Copy), "profile-copy-button").c_str())) {
 		std::string copyName = currentProfileName + " " + std::string(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Copy_Suffix));
 		if (options.profiles.find(copyName) != options.profiles.end()) {
@@ -1401,6 +1508,8 @@ void GW2_SCT::Options::paintProfiles() {
 		requestProfileSwitch(newProfile);
 		requestSave();
 	}
+	
+	ImGui::SameLine();
 	if (currentProfileIsDefault) {
 		ImGui::BeginDisabled();
 	}
