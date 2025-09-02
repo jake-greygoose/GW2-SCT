@@ -21,6 +21,7 @@ namespace GW2_SCT {
 		static void load();
 		static void requestSave();
 		static void processPendingSave();
+		static void processPendingProfileSwitch();
 		static void loadProfile(std::string characterName);
 		static std::string getCurrentCharacterName() { return currentCharacterName; }
 		static std::string getFontSelectionString(bool withMaster = true) { return withMaster ? fontSelectionStringWithMaster : fontSelectionString; };
@@ -50,6 +51,10 @@ namespace GW2_SCT {
 		static std::chrono::steady_clock::time_point lastSaveRequest;
 		static bool saveRequested;
 		static const std::chrono::milliseconds SAVE_DELAY; // 500ms delay
+		
+		static std::mutex profileSwitchMutex;
+		static std::shared_ptr<profile_options_struct> pendingProfile;
+		static void requestProfileSwitch(std::shared_ptr<profile_options_struct> newProfile);
 	};
 
 	struct receiver_information {

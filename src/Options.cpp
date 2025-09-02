@@ -4,6 +4,8 @@
 #include <vector>
 #include <algorithm>
 #include <cstdio>
+#include <mutex>
+#include <thread>
 #include "json.hpp"
 #include "Common.h"
 #include "imgui.h"
@@ -34,6 +36,9 @@ std::string GW2_SCT::Options::currentCharacterName = "";
 std::chrono::steady_clock::time_point GW2_SCT::Options::lastSaveRequest = std::chrono::steady_clock::now();
 bool GW2_SCT::Options::saveRequested = false;
 const std::chrono::milliseconds GW2_SCT::Options::SAVE_DELAY(500);
+
+std::mutex GW2_SCT::Options::profileSwitchMutex;
+std::shared_ptr<GW2_SCT::profile_options_struct> GW2_SCT::Options::pendingProfile;
 
 static bool inScrollAreasTab = false;
 
@@ -299,6 +304,19 @@ void GW2_SCT::Options::processPendingSave() {
 	}
 }
 
+void GW2_SCT::Options::requestProfileSwitch(std::shared_ptr<profile_options_struct> newProfile) {
+	std::lock_guard<std::mutex> lock(profileSwitchMutex);
+	pendingProfile = newProfile;
+}
+
+void GW2_SCT::Options::processPendingProfileSwitch() {
+	std::lock_guard<std::mutex> lock(profileSwitchMutex);
+	if (pendingProfile) {
+		profile = pendingProfile;
+		pendingProfile.reset();
+	}
+}
+
 void GW2_SCT::Options::load() {
 	fontSelectionString = "";
 	for (auto it = fontMap.begin(); it != fontMap.end(); ++it) {
@@ -436,6 +454,7 @@ namespace GW2_SCT {
 
 
 void GW2_SCT::Options::setDefault() {
+	LOG("WARNING: Resetting all options to default - all profiles and settings will be lost");
 	currentProfileName = defaultProfileName;
 	profile = options.profiles[defaultProfileName] = std::make_shared<profile_options_struct>();
 	initProfileWithDefaults(profile);
@@ -1261,7 +1280,7 @@ void GW2_SCT::Options::paintProfiles() {
 					options.globalProfile = nameAndProfile.first;
 					if (!doesCharacterMappingExist) {
 						currentProfileName = nameAndProfile.first;
-						profile = nameAndProfile.second;
+						requestProfileSwitch(nameAndProfile.second);
 					}
 					requestSave();
 				}
@@ -1277,7 +1296,7 @@ void GW2_SCT::Options::paintProfiles() {
 			}
 			else {
 				currentProfileName = options.globalProfile;
-				profile = options.profiles[currentProfileName];
+				requestProfileSwitch(options.profiles[currentProfileName]);
 				options.characterProfileMap.erase(currentCharacterName);
 			}
 			requestSave();
@@ -1289,7 +1308,7 @@ void GW2_SCT::Options::paintProfiles() {
 			for (auto& nameAndProfile : options.profiles) {
 				if (ImGui::Selectable((nameAndProfile.first + "##character-profile-selectable").c_str())) {
 					currentProfileName = nameAndProfile.first;
-					profile = nameAndProfile.second;
+					requestProfileSwitch(nameAndProfile.second);
 					options.characterProfileMap[currentCharacterName] = currentProfileName;
 					requestSave();
 				}
@@ -1355,7 +1374,7 @@ void GW2_SCT::Options::paintProfiles() {
 			}
 		}
 		currentProfileName = copyName;
-		profile = options.profiles[currentProfileName];
+		requestProfileSwitch(options.profiles[currentProfileName]);
 		requestSave();
 	}
 	ImGui::SameLine();
@@ -1379,7 +1398,7 @@ void GW2_SCT::Options::paintProfiles() {
 			options.globalProfile = newProfileName;
 		}
 		currentProfileName = newProfileName;
-		profile = newProfile;
+		requestProfileSwitch(newProfile);
 		requestSave();
 	}
 	if (currentProfileIsDefault) {
@@ -1406,7 +1425,7 @@ void GW2_SCT::Options::paintProfiles() {
 			}
 			options.profiles.erase(currentProfileName);
 			currentProfileName = defaultProfileName;
-			profile = options.profiles[currentProfileName];
+			requestProfileSwitch(options.profiles[currentProfileName]);
 			requestSave();
 			ImGui::CloseCurrentPopup();
 		}

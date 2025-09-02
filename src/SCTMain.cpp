@@ -357,6 +357,8 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	GW2_SCT::SkillIcon::ProcessPendingIconTextures();
 	GW2_SCT::FontType::ProcessPendingAtlasUpdates();
 	FontType::ensureAtlasCreation();
+	
+	Options::processPendingProfileSwitch();
 
 	// Options
 	Options::paint(scrollAreas);
