@@ -1277,25 +1277,25 @@ void GW2_SCT::Options::paintProfiles() {
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.2f, 0.4f, 0.2f, 0.3f));
 	if (ImGui::BeginChild("ActiveProfileStatus", ImVec2(0, 120), true)) {
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 8.0f));
-		ImGui::Text("Currently Active Profile:");
+		ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Active_Profile_Title));
 		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
 		ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "%s", currentProfileName.c_str());
 		ImGui::PopFont();
 		
 		if (currentCharacterName != "") {
 			if (doesCharacterMappingExist) {
-				ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.4f, 1.0f), "Source: Character Override (%s)", currentCharacterName.c_str());
+				ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.4f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_Character_Override), currentCharacterName.c_str());
 			} else {
-				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Source: Default Profile (%s)", currentCharacterName.c_str());
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_Default_Profile), currentCharacterName.c_str());
 			}
 		} else {
-			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Source: Default Profile (No Character)");
+			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_No_Character));
 		}
 		
 		auto currentProfile = profile.operator std::shared_ptr<profile_options_struct>();
 		if (currentProfile && !currentProfile->scrollAreaOptions.empty()) {
 			ImGui::Spacing();
-			ImGui::Text("Scroll Areas (%d):", (int)currentProfile->scrollAreaOptions.size());
+			ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Scroll_Areas_Count), (int)currentProfile->scrollAreaOptions.size());
 			ImGui::Indent();
 			for (auto& area : currentProfile->scrollAreaOptions) {
 				if (area->enabled) {
@@ -1307,7 +1307,7 @@ void GW2_SCT::Options::paintProfiles() {
 			ImGui::Unindent();
 		} else {
 			ImGui::Spacing();
-			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "No scroll areas configured");
+			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::No_Scroll_Areas));
 		}
 		ImGui::PopStyleVar();
 	}
@@ -1321,7 +1321,7 @@ void GW2_SCT::Options::paintProfiles() {
 	ImGui::Spacing();
 	
 
-	ImGui::Text("Profile Management:");
+	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Management_Title));
 	ImGui::Spacing();
 
 	if (ImGui::BeginCombo("Default Profile:", options.globalProfile.c_str())) {
@@ -1461,7 +1461,7 @@ void GW2_SCT::Options::paintProfiles() {
 	ImGui::Spacing();
 	ImGui::Spacing();
 	
-	ImGui::Text("Manage Profiles:");
+	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Manage_Profiles_Title));
 	ImGui::Spacing();
 	if (ImGui::Button(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Create_Profile_Copy), "profile-copy-button").c_str())) {
 		std::string copyName = currentProfileName + " " + std::string(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Copy_Suffix));

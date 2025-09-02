@@ -161,8 +161,17 @@
     "Current_Profile_Heading": "Current profile information:",
     "Current_Profile_Name": "Profile Name",
     "Create_Profile_Copy": "Create a Copy",
+    "Create_Profile_New": "New Profile",
     "Delete_Profile": "Delete this profile",
-    "Profile_Copy_Suffix": "Copy"
+    "Profile_Copy_Suffix": "Copy",
+    "Active_Profile_Title": "Currently Active Profile:",
+    "Profile_Source_Character_Override": "Source: Character Override (%s)",
+    "Profile_Source_Default_Profile": "Source: Default Profile (%s)",
+    "Profile_Source_No_Character": "Source: Default Profile (No Character)",
+    "Profile_Management_Title": "Profile Management:",
+    "Manage_Profiles_Title": "Manage Profiles:",
+    "Scroll_Areas_Count": "Scroll Areas (%d):",
+    "No_Scroll_Areas": "No scroll areas configured"
   },
   "Message_General": {
     "Parameter_Description_v": "Amount of damage",

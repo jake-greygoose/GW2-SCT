@@ -234,6 +234,14 @@
   F(Create_Profile_New,)\
   F(Delete_Profile,)\
   F(Profile_Copy_Suffix,)\
+  F(Active_Profile_Title,)\
+  F(Profile_Source_Character_Override,)\
+  F(Profile_Source_Default_Profile,)\
+  F(Profile_Source_No_Character,)\
+  F(Profile_Management_Title,)\
+  F(Manage_Profiles_Title,)\
+  F(Scroll_Areas_Count,)\
+  F(No_Scroll_Areas,)\
   F(Start_Recording,)\
   F(Stop_Recording,)\
   F(Start_Emitting,)\
