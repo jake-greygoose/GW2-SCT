@@ -73,7 +73,10 @@ void GW2_SCT::SkillIconManager::init() {
 		if (preloadAllSkillIconsId >= 0) {
 			oldProfile->preloadAllSkillIcons.removeOnAssign(preloadAllSkillIconsId);
 		}
-		if (newProfile->skillIconsEnabled) SkillIconManager::internalInit();
+		if (newProfile->skillIconsEnabled) {
+			std::thread t(SkillIconManager::internalInit);
+			t.detach();
+		}
 		skillIconsEnabledCallbackId = newProfile->skillIconsEnabled.onAssign([=](const bool& wasEnabled, const bool& isNowEnabled) {
 			if (wasEnabled == isNowEnabled) return;
 			if (isNowEnabled) {
