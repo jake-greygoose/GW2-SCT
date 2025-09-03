@@ -45,3 +45,6 @@ RelWithDebInfo
 *.sln
 cmake_install.cmake
 *.log
+/CLAUDE.md
+/.gitignore
+/.gitignore
