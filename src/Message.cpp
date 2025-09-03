@@ -458,6 +458,64 @@ namespace GW2_SCT {
         return {};
     }
 
+    int32_t EventMessage::getCombinedValue() const {
+        MessageType msgType = type;
+        int32_t totalValue = 0;
+        
+        switch (msgType) {
+            case MessageType::PHYSICAL:
+            case MessageType::CRIT:
+            case MessageType::HEAL:
+                for (auto& data : messageDatas) {
+                    if (data) totalValue += abs(data->value);
+                }
+                break;
+                
+            case MessageType::BLEEDING:
+            case MessageType::BURNING:
+            case MessageType::POISON:
+            case MessageType::CONFUSION:
+            case MessageType::RETALIATION:
+            case MessageType::TORMENT:
+            case MessageType::DOT:
+            case MessageType::HOT:
+                for (auto& data : messageDatas) {
+                    if (data) totalValue += abs(data->buffValue);
+                }
+                break;
+                
+            case MessageType::SHIELD_RECEIVE:
+            case MessageType::SHIELD_REMOVE:
+                for (auto& data : messageDatas) {
+                    if (data) {
+                        if (data->overstack_value != 0) {
+                            totalValue += abs(static_cast<int32_t>(data->overstack_value));
+                        } else {
+                            totalValue += abs(data->value);
+                        }
+                    }
+                }
+                break;
+                
+            default:
+                // For other types, try to get any non-zero value
+                for (auto& data : messageDatas) {
+                    if (data) {
+                        if (data->value != 0) {
+                            totalValue += abs(data->value);
+                        } else if (data->buffValue != 0) {
+                            totalValue += abs(data->buffValue);
+                        } else {
+                            totalValue += abs(static_cast<int32_t>(data->overstack_value));
+                        }
+                    }
+                }
+                break;
+        }
+        
+        return totalValue;
+    }
+
     MessageCategory EventMessage::getCategory() { return category; }
     MessageType     EventMessage::getType() { return type; }
     bool            EventMessage::hasToBeFiltered() { return false; }

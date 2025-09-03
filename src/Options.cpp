@@ -241,6 +241,11 @@ void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scr
 				paintSkillFilters();
 				ImGui::EndTabItem();
 			}
+			if (ImGui::BeginTabItem("Global Thresholds")) {
+				inScrollAreasTab = false;
+				paintGlobalThresholds();
+				ImGui::EndTabItem();
+			}
 			if (ImGui::BeginTabItem(langString(LanguageCategory::Option_UI, LanguageKey::Menu_Bar_Skill_Icons))) {
 				inScrollAreasTab = false;
 				paintSkillIcons();
@@ -1236,6 +1241,68 @@ void GW2_SCT::Options::paintSkillFilters() {
 		}
 
 		ImGui::EndChild();
+	}
+}
+
+void GW2_SCT::Options::paintGlobalThresholds() {
+	auto currentProfile = get();
+	if (!currentProfile) return;
+
+	ImGui::Text("Global Thresholds");
+	ImGui::Separator();
+	
+	ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x);
+	ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), 
+		"Global thresholds apply to all message receivers that don't have their own threshold settings enabled. "
+		"Individual receiver threshold settings will override these global settings when enabled.");
+	ImGui::PopTextWrapPos();
+	
+	ImGui::Spacing();
+	
+	if (ImGui::Checkbox("Enable Global Thresholds", &currentProfile->globalThresholdsEnabled)) {
+		requestSave();
+	}
+	
+	if (!currentProfile->globalThresholdsEnabled) {
+		ImGui::BeginDisabled();
+	}
+	
+	if (ImGui::Checkbox("Respect Filters", &currentProfile->globalThresholdRespectFilters)) {
+		requestSave();
+	}
+	if (ImGui::IsItemHovered()) {
+		ImGui::BeginTooltip();
+		ImGui::PushTextWrapPos(300.0f);
+		ImGui::Text("When enabled, skills that are ALLOWED by filter sets will bypass thresholds globally.");
+		ImGui::Separator();
+		ImGui::Text("This setting applies to all receivers using global thresholds.");
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
+	
+	ImGui::Spacing();
+	ImGui::Text("Threshold Values:");
+	
+	if (ImGui::ClampingDragInt("Damage Threshold", &currentProfile->globalDamageThreshold, 1.0f, 0, 999999, "%d")) {
+		requestSave();
+	}
+	ImGui::SameLine();
+	ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "(Physical, Crit, DoT, etc.)");
+	
+	if (ImGui::ClampingDragInt("Heal Threshold", &currentProfile->globalHealThreshold, 1.0f, 0, 999999, "%d")) {
+		requestSave();
+	}
+	ImGui::SameLine();
+	ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "(Heal, HoT)");
+	
+	if (ImGui::ClampingDragInt("Barrier Threshold", &currentProfile->globalAbsorbThreshold, 1.0f, 0, 999999, "%d")) {
+		requestSave();
+	}
+	ImGui::SameLine();
+	ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "(Shield, Barrier)");
+	
+	if (!currentProfile->globalThresholdsEnabled) {
+		ImGui::EndDisabled();
 	}
 }
 

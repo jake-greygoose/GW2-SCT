@@ -37,6 +37,7 @@ namespace GW2_SCT {
 	class profile_options_struct;
 	class scroll_area_options_struct;
 	class message_receiver_options_struct;
+	class EventMessage;
 
 	class options_struct {
 	public:
@@ -74,6 +75,12 @@ namespace GW2_SCT {
 		ObservableValue<bool> skillIconsEnabled = false;
 		ObservableValue<bool> preloadAllSkillIcons = false;
 		SkillIconDisplayType skillIconsDisplayType = SkillIconDisplayType::NORMAL;
+		
+		bool globalThresholdsEnabled = false;
+		int globalDamageThreshold = 0;
+		int globalHealThreshold = 0;
+		int globalAbsorbThreshold = 0;
+		bool globalThresholdRespectFilters = true;
 	};
 	void to_json(nlohmann::json& j, const profile_options_struct& p);
 	void from_json(const nlohmann::json& j, profile_options_struct& p);
@@ -128,6 +135,12 @@ namespace GW2_SCT {
 		bool transient_showCombinedHitCount = true;
 		bool transient_abbreviateSkillNames = false;
 		int  transient_numberShortPrecision = -1;
+
+		bool thresholdsEnabled = false;
+		int damageThreshold = 0;
+		int healThreshold = 0;
+		int absorbThreshold = 0;
+		bool thresholdRespectFilters = true;
 
 		// TODO: relocate this
 		bool isSkillFiltered(uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {
@@ -187,6 +200,18 @@ namespace GW2_SCT {
 
 			return finalAction == FilterAction::BLOCK;
 		}
+
+		bool isThresholdExceeded(std::shared_ptr<EventMessage> message, uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const;
+		
+	private:
+		enum class ThresholdCategory {
+			DAMAGE,
+			HEAL,
+			ABSORB,
+			OTHER
+		};
+		
+		ThresholdCategory getMessageThresholdCategory(MessageType type) const;
 	};
 	void to_json(nlohmann::json& j, const message_receiver_options_struct& p);
 	void from_json(const nlohmann::json& j, message_receiver_options_struct& p);

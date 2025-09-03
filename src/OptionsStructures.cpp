@@ -1,4 +1,5 @@
 #include "OptionsStructures.h"
+#include "Message.h"
 #include <memory>
 #include <map>
 #include <utility>
@@ -196,6 +197,11 @@ namespace GW2_SCT {
         j["skillIconsEnabled"] = p.skillIconsEnabled;
         j["preloadAllSkillIcons"] = p.preloadAllSkillIcons;
         j["skillIconsDisplayType"] = skillIconDisplayTypeToInt(p.skillIconsDisplayType);
+        j["globalThresholdsEnabled"] = p.globalThresholdsEnabled;
+        j["globalDamageThreshold"] = p.globalDamageThreshold;
+        j["globalHealThreshold"] = p.globalHealThreshold;
+        j["globalAbsorbThreshold"] = p.globalAbsorbThreshold;
+        j["globalThresholdRespectFilters"] = p.globalThresholdRespectFilters;
     }
 
     void from_json(const nlohmann::json& j, profile_options_struct& p) {
@@ -227,6 +233,11 @@ namespace GW2_SCT {
             int v{}; j.at("skillIconsDisplayType").get_to(v);
             p.skillIconsDisplayType = intSkillIconDisplayType(v);
         }
+        if (j.contains("globalThresholdsEnabled")) j.at("globalThresholdsEnabled").get_to(p.globalThresholdsEnabled);
+        if (j.contains("globalDamageThreshold")) j.at("globalDamageThreshold").get_to(p.globalDamageThreshold);
+        if (j.contains("globalHealThreshold")) j.at("globalHealThreshold").get_to(p.globalHealThreshold);
+        if (j.contains("globalAbsorbThreshold")) j.at("globalAbsorbThreshold").get_to(p.globalAbsorbThreshold);
+        if (j.contains("globalThresholdRespectFilters")) j.at("globalThresholdRespectFilters").get_to(p.globalThresholdRespectFilters);
     }
 
 } // namespace GW2_SCT
@@ -299,6 +310,11 @@ namespace GW2_SCT {
         j["fontSize"] = p.fontSize;
         j["assignedFilterSets"] = p.assignedFilterSets;
         j["filtersEnabled"] = p.filtersEnabled;
+        j["thresholdsEnabled"] = p.thresholdsEnabled;
+        j["damageThreshold"] = p.damageThreshold;
+        j["healThreshold"] = p.healThreshold;
+        j["absorbThreshold"] = p.absorbThreshold;
+        j["thresholdRespectFilters"] = p.thresholdRespectFilters;
     }
 
     void from_json(const nlohmann::json& j, message_receiver_options_struct& p) {
@@ -312,6 +328,71 @@ namespace GW2_SCT {
         if (j.contains("fontSize")) j.at("fontSize").get_to(p.fontSize);
         if (j.contains("assignedFilterSets")) j.at("assignedFilterSets").get_to(p.assignedFilterSets);
         if (j.contains("filtersEnabled")) j.at("filtersEnabled").get_to(p.filtersEnabled);
+        if (j.contains("thresholdsEnabled")) j.at("thresholdsEnabled").get_to(p.thresholdsEnabled);
+        if (j.contains("damageThreshold")) j.at("damageThreshold").get_to(p.damageThreshold);
+        if (j.contains("healThreshold")) j.at("healThreshold").get_to(p.healThreshold);
+        if (j.contains("absorbThreshold")) j.at("absorbThreshold").get_to(p.absorbThreshold);
+        if (j.contains("thresholdRespectFilters")) j.at("thresholdRespectFilters").get_to(p.thresholdRespectFilters);
+    }
+
+    bool message_receiver_options_struct::isThresholdExceeded(std::shared_ptr<EventMessage> message, uint32_t skillId, const std::string& skillName, const SkillFilterManager& filterManager) const {
+        auto globalOptions = Options::get();
+        
+        bool thresholdsActive = thresholdsEnabled || (globalOptions->globalThresholdsEnabled && !thresholdsEnabled);
+        if (!thresholdsActive && !globalOptions->globalThresholdsEnabled) {
+            return false;
+        }
+
+        bool respectFilters = thresholdsEnabled ? thresholdRespectFilters : globalOptions->globalThresholdRespectFilters;
+        
+        if (respectFilters && filtersEnabled && !isSkillFiltered(skillId, skillName, filterManager)) {
+            return false;
+        }
+
+        ThresholdCategory category = getMessageThresholdCategory(message->getType());
+        int32_t totalValue = message->getCombinedValue();
+
+        int activeDamageThreshold = thresholdsEnabled ? damageThreshold : globalOptions->globalDamageThreshold;
+        int activeHealThreshold = thresholdsEnabled ? healThreshold : globalOptions->globalHealThreshold;
+        int activeAbsorbThreshold = thresholdsEnabled ? absorbThreshold : globalOptions->globalAbsorbThreshold;
+
+        switch (category) {
+            case ThresholdCategory::DAMAGE:
+                return totalValue < activeDamageThreshold;
+            case ThresholdCategory::HEAL:
+                return totalValue < activeHealThreshold;
+            case ThresholdCategory::ABSORB:
+                return totalValue < activeAbsorbThreshold;
+            case ThresholdCategory::OTHER:
+            default:
+                return totalValue < activeDamageThreshold;
+        }
+    }
+
+    message_receiver_options_struct::ThresholdCategory message_receiver_options_struct::getMessageThresholdCategory(MessageType type) const {
+        switch (type) {
+            case MessageType::PHYSICAL:
+            case MessageType::CRIT:
+            case MessageType::BLEEDING:
+            case MessageType::BURNING:
+            case MessageType::POISON:
+            case MessageType::CONFUSION:
+            case MessageType::RETALIATION:
+            case MessageType::TORMENT:
+            case MessageType::DOT:
+                return ThresholdCategory::DAMAGE;
+                
+            case MessageType::HEAL:
+            case MessageType::HOT:
+                return ThresholdCategory::HEAL;
+                
+            case MessageType::SHIELD_RECEIVE:
+            case MessageType::SHIELD_REMOVE:
+                return ThresholdCategory::ABSORB;
+                
+            default:
+                return ThresholdCategory::OTHER;
+        }
     }
 
 } // namespace GW2_SCT

@@ -28,11 +28,16 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 			receiver->transient_numberShortPrecision = options->shortenNumbersPrecision;
 
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
+			
 			if (!options->disableCombining && !messageQueue.empty()) {
 				if (Options::get()->combineAllMessages) {
 					for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) {
 						if (it->options == receiver && it->message->tryToCombineWith(m)) {
-							it->update();
+							if (!receiver->isThresholdExceeded(it->message, messageData->skillId, skillName, Options::get()->filterManager)) {
+								it->update();
+							} else {
+								messageQueue.erase(std::next(it).base());
+							}
 							mlock.unlock();
 							return;
 						}
@@ -41,15 +46,21 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 				else {
 					auto backMessage = messageQueue.rbegin();
 					if (backMessage->options == receiver && backMessage->message->tryToCombineWith(m)) {
-						backMessage->update();
+						if (!receiver->isThresholdExceeded(backMessage->message, messageData->skillId, skillName, Options::get()->filterManager)) {
+							backMessage->update();
+						} else {
+							messageQueue.pop_back();
+						}
 						mlock.unlock();
 						return;
 					}
 				}
 			}
+			
 			MessagePrerender preMessage = MessagePrerender(m, receiver);
-			if (preMessage.options != nullptr)
+			if (preMessage.options != nullptr) {
 				messageQueue.push_back(std::move(preMessage));
+			}
 			mlock.unlock();
 			return;
 		}
@@ -62,12 +73,24 @@ void GW2_SCT::ScrollArea::paint() {
 	std::unique_lock<std::mutex> mlock(messageQueueMutex);
 	if (!options->enabled) { return; }
 
-	if (!messageQueue.empty()) {
+	while (!messageQueue.empty()) {
 		MessagePrerender& m = messageQueue.front();
+		
+		if (m.options && m.message) {
+			auto messageData = m.message->getCopyOfFirstData();
+			std::string skillName = messageData && messageData->skillName ? std::string(messageData->skillName) : "";
+			
+			if (m.options->isThresholdExceeded(m.message, messageData ? messageData->skillId : 0, skillName, Options::get()->filterManager)) {
+				messageQueue.pop_front();
+				continue;
+			}
+		}
+		
 		time_point<system_clock> now = system_clock::now();
 		if (paintedMessages.empty()) {
 			paintedMessages.push_back(std::make_pair(std::move(m), now));
 			messageQueue.pop_front();
+			break;
 		}
 		else {
 			float spaceRequiredForNextMessage = getTextSize(m.str.c_str(), m.font, m.fontSize).y;
@@ -82,10 +105,12 @@ void GW2_SCT::ScrollArea::paint() {
 					paintedMessages.push_back(std::make_pair(std::move(m), now));
 					messageQueue.pop_front();
 				}
+				break;
 			}
 			else {
 				paintedMessages.push_back(std::make_pair(std::move(m), now));
 				messageQueue.pop_front();
+				break; // Only process one message per paint cycle
 			}
 		}
 	}

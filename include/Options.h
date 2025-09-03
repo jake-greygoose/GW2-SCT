@@ -36,6 +36,7 @@ namespace GW2_SCT {
 		static void paintScrollAreas(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 		static void paintProfessionColors();
 		static void paintSkillFilters();
+		static void paintGlobalThresholds();
 		static void paintSkillIcons();
 		static void paintProfiles();
 		static options_struct options;

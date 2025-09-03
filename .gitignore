@@ -45,3 +45,4 @@ RelWithDebInfo
 *.sln
 cmake_install.cmake
 *.log
+*.md

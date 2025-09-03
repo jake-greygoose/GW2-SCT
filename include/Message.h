@@ -57,6 +57,7 @@ namespace GW2_SCT {
 
         std::string getStringForOptions(std::shared_ptr<message_receiver_options_struct> opt);
         std::shared_ptr<MessageData> getCopyOfFirstData();
+        int32_t getCombinedValue() const;
         MessageCategory getCategory();
         MessageType getType();
         bool hasToBeFiltered();
