@@ -268,7 +268,7 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 		ImGui::Separator();
 		ImGui::Text("Thresholds:");
 
-		if (ImGui::Checkbox(BuildLabel("Enabled", "receiver-thresholds-enabled", indexString).c_str(),
+		if (ImGui::Checkbox(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Thresholds_Enable), "receiver-thresholds-enabled", indexString).c_str(),
 			&receiverOptions->thresholdsEnabled)) {
 			GW2_SCT::Options::requestSave();
 		}
@@ -277,18 +277,14 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 			ImGui::BeginDisabled();
 		}
 
-		if (ImGui::Checkbox(BuildLabel("Respect Filters", "receiver-threshold-respect-filters", indexString).c_str(),
+		if (ImGui::Checkbox(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Threshold_Respect_Filters), "receiver-threshold-respect-filters", indexString).c_str(),
 			&receiverOptions->thresholdRespectFilters)) {
 			GW2_SCT::Options::requestSave();
 		}
 		if (ImGui::IsItemHovered()) {
 			ImGui::BeginTooltip();
 			ImGui::PushTextWrapPos(300.0f);
-			ImGui::Text("When enabled, skills that are ALLOWED by your filter sets will bypass the threshold and always show, regardless of damage/heal amount.");
-			ImGui::Separator();
-			ImGui::Text("Example: If you have a 500 damage threshold but whitelist 'Spinal Shivers' in your filters, then even a 100 damage Spinal Shivers will be shown.");
-			ImGui::Separator();
-			ImGui::Text("When disabled, ALL messages must meet the threshold requirement, even whitelisted skills.");
+			ImGui::Text(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Threshold_Respect_Filters_Tooltip));
 			ImGui::PopTextWrapPos();
 			ImGui::EndTooltip();
 		}
@@ -312,25 +308,24 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 		                     msgType == GW2_SCT::MessageType::SHIELD_REMOVE);
 
 		if (isDamageType) {
-			if (ImGui::ClampingDragInt(BuildLabel("Damage Threshold", "receiver-damage-threshold", indexString).c_str(),
+			if (ImGui::ClampingDragInt(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Damage_Threshold), "receiver-damage-threshold", indexString).c_str(),
 				&receiverOptions->damageThreshold, 1.0f, 0, 999999, "%d")) {
 				GW2_SCT::Options::requestSave();
 			}
 		}
 		else if (isHealType) {
-			if (ImGui::ClampingDragInt(BuildLabel("Heal Threshold", "receiver-heal-threshold", indexString).c_str(),
+			if (ImGui::ClampingDragInt(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Heal_Threshold), "receiver-heal-threshold", indexString).c_str(),
 				&receiverOptions->healThreshold, 1.0f, 0, 999999, "%d")) {
 				GW2_SCT::Options::requestSave();
 			}
 		}
 		else if (isAbsorbType) {
-			if (ImGui::ClampingDragInt(BuildLabel("Barrier Threshold", "receiver-absorb-threshold", indexString).c_str(),
+			if (ImGui::ClampingDragInt(BuildLabel(langString(GW2_SCT::LanguageCategory::Option_UI, GW2_SCT::LanguageKey::Receiver_Barrier_Threshold), "receiver-absorb-threshold", indexString).c_str(),
 				&receiverOptions->absorbThreshold, 1.0f, 0, 999999, "%d")) {
 				GW2_SCT::Options::requestSave();
 			}
 		}
 		else {
-			// For other types (block, evade, miss, etc.), show a generic threshold using damage threshold field
 			if (ImGui::ClampingDragInt(BuildLabel("Message Threshold", "receiver-generic-threshold", indexString).c_str(),
 				&receiverOptions->damageThreshold, 1.0f, 0, 999999, "%d")) {
 				GW2_SCT::Options::requestSave();

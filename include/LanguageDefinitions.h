@@ -141,6 +141,7 @@
   F(Menu_Bar_Filtered_Skills,)\
   F(Menu_Bar_Skill_Icons,)\
   F(Menu_Bar_Profiles,)\
+  F(Menu_Bar_Global_Thresholds,)\
   F(General_Enabled,)\
   F(General_Scrolling_Speed,)\
   F(General_Scrolling_Speed_Toolip,)\
@@ -255,4 +256,17 @@
   F(Show_Combined_Hit_Count,)\
   F(Disable_Message_Combining,)\
   F(Scroll_Direction,)\
-  F(Advanced_Options,)
+  F(Advanced_Options,)\
+  F(Global_Thresholds_Enable,)\
+  F(Global_Thresholds_Description,)\
+  F(Global_Damage_Threshold,)\
+  F(Global_Heal_Threshold,)\
+  F(Global_Barrier_Threshold,)\
+  F(Global_Threshold_Respect_Filters,)\
+  F(Global_Threshold_Respect_Filters_Tooltip,)\
+  F(Receiver_Thresholds_Enable,)\
+  F(Receiver_Damage_Threshold,)\
+  F(Receiver_Heal_Threshold,)\
+  F(Receiver_Barrier_Threshold,)\
+  F(Receiver_Threshold_Respect_Filters,)\
+  F(Receiver_Threshold_Respect_Filters_Tooltip,)
