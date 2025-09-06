@@ -1208,7 +1208,9 @@ void GW2_SCT::Options::paintSkillFilters() {
 				if (ImGui::Button("+ Add Filter")) {
 					SkillFilter newFilter;
 					newFilter.type = FilterType::SKILL_ID;
-					newFilter.action = FilterAction::BLOCK;
+					newFilter.action = (filterSet->filterSet.defaultAction == FilterAction::ALLOW) 
+						? FilterAction::BLOCK 
+						: FilterAction::ALLOW;
 					newFilter.skillId = 0;
 					filterSet->filterSet.filters.push_back(newFilter);
 					requestSave();
