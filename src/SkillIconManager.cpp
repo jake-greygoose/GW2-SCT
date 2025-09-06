@@ -1,5 +1,4 @@
-#define CPPHTTPLIB_OPENSSL_SUPPORT
-#include "httplib.h"
+#include "httpclient.h"
 #include "SkillIconManager.h"
 #include <string>
 #include <thread>
@@ -11,20 +10,41 @@
 #include <stb_image.h>
 #include "Texture.h"
 
-#pragma comment(lib, "libssl")
-#pragma comment(lib, "libcrypto")
 
-httplib::Client renderingClient("https://render.guildwars2.com");
-httplib::Client apiClient("https://api.guildwars2.com");
 
-nlohmann::json getJSON(std::string url, std::function<void(httplib::Headers)> callback = nullptr) {
-	if (auto res = apiClient.Get(url.c_str())) {
-		if (callback != nullptr)
-			callback(res->headers);
+nlohmann::json getJSON(std::string url, std::function<void(std::map<std::string, std::string>)> callback = nullptr) {
+	std::string fullUrl = "https://api.guildwars2.com" + url;
+	std::string response = HTTPClient::GetRequest(HTTPClient::StringToWString(fullUrl));
+	
+	if (response.empty()) {
+		throw std::exception(("Error sending GET request to " + fullUrl).c_str());
+	}
+	
+	if (callback != nullptr) {
+		std::map<std::string, std::string> emptyHeaders;
+		callback(emptyHeaders);
+	}
+	
+	return nlohmann::json::parse(response);
+}
 
-		return nlohmann::json::parse(res->body);
-	} else {
-		throw std::exception(("Error sending GET request to https://api.guildwars2.com" + url + ": " + to_string(res.error())).c_str());
+bool downloadBinaryFile(const std::string& url, const std::string& outputPath) {
+	try {
+		std::string response = HTTPClient::GetRequest(HTTPClient::StringToWString(url));
+		if (response.empty()) {
+			return false;
+		}
+		
+		std::ofstream fileStream(outputPath, std::ofstream::binary);
+		if (!fileStream.is_open()) {
+			return false;
+		}
+		
+		fileStream.write(response.data(), response.size());
+		fileStream.close();
+		return true;
+	} catch (...) {
+		return false;
 	}
 }
 
@@ -125,7 +145,7 @@ void GW2_SCT::SkillIconManager::internalInit() {
 	try {
 		if (Options::get()->skillIconsEnabled) {
 			std::regex matcher("X-Rate-Limit-Limit: ([0-9]+)");
-			std::vector<int> skillIdList = getJSON("/v2/skills", [](httplib::Headers headers) {
+			std::vector<int> skillIdList = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
 				auto foundHeader = headers.find("X-Rate-Limit-Limit");
 				if (foundHeader != headers.end()) {
 					requestsPerMinute = std::min(std::stoi(foundHeader->second), requestsPerMinute);
@@ -273,19 +293,16 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					if (iniVal.compare(desc) != 0 || (!std::filesystem::exists(curImagePath.c_str()) && !std::filesystem::exists(curImagePathPng.c_str()))) {
 						std::this_thread::sleep_for(std::chrono::milliseconds(60000 / requestsPerMinute));
 						LOG("Downloading skill icon: ", curSkillId);
-						std::ofstream fileStream(curImagePath, std::ofstream::binary);
-
-						renderingClient.Get(("/file/" + desc).c_str(), [&](const char* data, size_t data_length) {
-							for (const char* i = data; i < data + data_length; i++) {
-								fileStream << (int8_t)*i;
-							}
-							return true;
-						});
-
-						fileStream.close();
-						LOG("Finished downloading skill icon.");
-						binaryLoadedIcons.push_back(std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>(curSkillId, loadBinaryFileData(curImagePath)));
-						skillJsonValues[curSkillId] = desc;
+						
+						std::string downloadUrl = "https://render.guildwars2.com/file/" + desc;
+						if (downloadBinaryFile(downloadUrl, curImagePath)) {
+							LOG("Finished downloading skill icon.");
+							binaryLoadedIcons.push_back(std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>(curSkillId, loadBinaryFileData(curImagePath)));
+							skillJsonValues[curSkillId] = desc;
+						} else {
+							LOG("Failed to download skill icon: ", curSkillId);
+							throw std::exception(("Failed to download skill icon: " + std::to_string(curSkillId)).c_str());
+						}
 					}
 				}
 				catch (std::exception& e) {
