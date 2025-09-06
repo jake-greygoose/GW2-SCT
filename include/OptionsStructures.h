@@ -72,7 +72,7 @@ namespace GW2_SCT {
 		std::string professionColorDefault = "FF0000";
 		ObservableVector<std::shared_ptr<scroll_area_options_struct>> scrollAreaOptions = {};
 		SkillFilterManager filterManager;
-		ObservableValue<bool> skillIconsEnabled = false;
+		ObservableValue<bool> skillIconsEnabled = true;
 		ObservableValue<bool> preloadAllSkillIcons = false;
 		SkillIconDisplayType skillIconsDisplayType = SkillIconDisplayType::NORMAL;
 		
