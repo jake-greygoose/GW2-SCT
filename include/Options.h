@@ -10,6 +10,8 @@ namespace GW2_SCT {
 	class ScrollArea;
 
 	std::map<char, std::string> mapParameterListToLanguage(const char* section, std::vector<char> list);
+	
+	void initProfileWithDefaults(std::shared_ptr<profile_options_struct> p);
 
 	class Options {
 	public:

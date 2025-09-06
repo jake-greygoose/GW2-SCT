@@ -92,15 +92,21 @@ namespace nlohmann {
         }
         static void from_json(const json& j, shared_ptr_map_with_creation<K, V>& m) {
             m.clear();
-            if (!j.is_object()) return;
+            if (!j.is_object()) {
+                return;
+            }
             for (auto it = j.begin(); it != j.end(); ++it) {
                 if (it->is_null()) {
                     m[it.key()] = nullptr;
                 }
                 else {
-                    auto ptr = std::make_shared<V>();
-                    it.value().get_to(*ptr);
-                    m[it.key()] = std::move(ptr);
+                    try {
+                        auto ptr = std::make_shared<V>();
+                        it.value().get_to(*ptr);
+                        m[it.key()] = std::move(ptr);
+                    }
+                    catch (const std::exception& e) {
+                    }
                 }
             }
         }

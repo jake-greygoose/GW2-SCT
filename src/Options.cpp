@@ -287,13 +287,28 @@ bool stob(std::string const& s) {
 }
 
 void GW2_SCT::Options::save() {
+#if _DEBUG
+	LOG("SAVE TRIGGERED: Saving options with ", options.profiles.size(), " profiles");
+#endif
+	if (options.profiles.empty()) {
+		LOG("ERROR: Attempted to save options with empty profiles map! Save blocked to prevent data loss.");
+		LOG("This suggests profiles failed to load or were cleared unexpectedly.");
+		return;
+	}
+	
 	std::ofstream out((getSCTPath() + "sct.json").c_str());
 	nlohmann::json j = options;
 	out << j.dump(2);
 	out.close();
+#if _DEBUG
+	LOG("Save completed");
+#endif
 }
 
 void GW2_SCT::Options::requestSave() {
+#if _DEBUG
+	LOG("SAVE REQUESTED: Current profiles count: ", options.profiles.size());
+#endif
 	lastSaveRequest = std::chrono::steady_clock::now();
 	saveRequested = true;
 }
@@ -345,16 +360,69 @@ void GW2_SCT::Options::load() {
 		in.close();
 		try {
 			nlohmann::json j = nlohmann::json::parse(text);
-			options = j;
+			
+#if _DEBUG
+			LOG("JSON parsing successful. Keys found: ");
+			for (auto it = j.begin(); it != j.end(); ++it) {
+				LOG("  - ", it.key());
+			}
+			
+			if (j.contains("profiles")) {
+				if (j["profiles"].is_object()) {
+					LOG("Profiles section found with ", j["profiles"].size(), " entries:");
+					for (auto it = j["profiles"].begin(); it != j["profiles"].end(); ++it) {
+						LOG("  - Profile: ", it.key());
+					}
+				} else {
+					LOG("Profiles section exists but is not an object, type: ", j["profiles"].type_name());
+				}
+			} else {
+				LOG("No profiles section found in JSON");
+			}
+#endif
+			
+			options_struct tempOptions;
+			j.get_to(tempOptions);
+			
+			if (tempOptions.profiles.empty()) {
+				LOG("Warning: JSON loaded but profiles is empty, initializing default profile");
+				tempOptions.profiles[defaultProfileName] = std::make_shared<profile_options_struct>();
+				GW2_SCT::initProfileWithDefaults(tempOptions.profiles[defaultProfileName]);
+			}
+#if _DEBUG
+			else {
+				LOG("Successfully loaded ", tempOptions.profiles.size(), " profiles from JSON");
+			}
+#endif
+			
+			options = std::move(tempOptions);
+#if _DEBUG
+			LOG("After moving tempOptions to options, profiles count: ", options.profiles.size());
+#endif
+			
 			if (options.profiles.find(defaultProfileName) == options.profiles.end()) {
-				options.profiles[defaultProfileName];
+#if _DEBUG
+				LOG("Default profile not found, creating it");
+#endif
+				options.profiles[defaultProfileName] = std::make_shared<profile_options_struct>();
+				GW2_SCT::initProfileWithDefaults(options.profiles[defaultProfileName]);
 			}
 
 			currentProfileName = options.globalProfile;
+#if _DEBUG
+			LOG("Setting current profile to: ", currentProfileName);
+#endif
+			if (options.profiles.find(currentProfileName) == options.profiles.end()) {
+				LOG("Warning: globalProfile '", currentProfileName, "' not found, using default");
+				currentProfileName = defaultProfileName;
+			}
 			profile = options.profiles[currentProfileName];
+#if _DEBUG
+			LOG("Final profiles count after loading: ", options.profiles.size());
+#endif
 			defaultFont = getFontType(profile->masterFont, false);
 		}
-		catch (std::exception e) {
+		catch (std::exception& e) {
 			LOG("Error loading options: ", e.what());
 			setDefault();
 		}
