@@ -1,6 +1,6 @@
 #pragma once
 
-#define SCT_VERSION_STRING "3.0.0.2"
+#define SCT_VERSION_STRING "3.0.0.3"
 #define langStringG(KEY) GW2_SCT::Language::get(KEY)
 #define langString(SECTION, KEY) GW2_SCT::Language::get(SECTION, KEY)
 #define langStringImguiSafe(SECTION, KEY) GW2_SCT::Language::get(SECTION, KEY, true)
