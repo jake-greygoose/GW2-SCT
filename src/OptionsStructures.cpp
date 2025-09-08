@@ -351,7 +351,7 @@ namespace GW2_SCT {
 
         bool respectFilters = thresholdsEnabled ? thresholdRespectFilters : globalOptions->globalThresholdRespectFilters;
         
-        if (respectFilters && filtersEnabled && !isSkillFiltered(skillId, skillName, filterManager)) {
+        if (respectFilters && filtersEnabled && !assignedFilterSets.empty() && !isSkillFiltered(skillId, skillName, filterManager)) {
             return false;
         }
 
