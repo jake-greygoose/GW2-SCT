@@ -52,7 +52,9 @@ bool GW2_SCT::TextureD3D11::create() {
         return true;
     }
 
+#if _DEBUG
     LOG("Creating D3D11 texture on render thread - size: ", width, "x", height);
+#endif
 
     HRESULT res;
     D3D11_TEXTURE2D_DESC desc = {};
@@ -76,14 +78,18 @@ bool GW2_SCT::TextureD3D11::create() {
             LOG("d3Device11->CreateTexture2D failed: " + std::to_string(res));
             return false;
         }
+#if _DEBUG
         LOG("D3D11 texture created successfully with data");
+#endif
     }
     else {
         if (FAILED(res = d3Device11->CreateTexture2D(&desc, NULL, &_texture11))) {
             LOG("d3Device11->CreateTexture2D failed: " + std::to_string(res));
             return false;
         }
+#if _DEBUG
         LOG("D3D11 texture created successfully without data");
+#endif
     }
 
     D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -123,7 +129,9 @@ void GW2_SCT::ImmutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec
 }
 
 bool GW2_SCT::ImmutableTextureD3D11::internalCreate() {
+#if _DEBUG
     LOG("ImmutableTextureD3D11: Calling create()");
+#endif
     return create();
 }
 

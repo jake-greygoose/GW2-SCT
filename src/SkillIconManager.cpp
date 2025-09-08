@@ -207,7 +207,9 @@ std::string join(Range const& elements, const char* const delimiter) {
 }
 
 void GW2_SCT::SkillIconManager::loadThreadCycle() {
+#if _DEBUG
 	LOG("Skillicon load thread started");
+#endif
 	try {
 		std::vector<std::string> files;
 		std::string iconPath = getSCTPath() + "icons\\";
@@ -303,11 +305,15 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					std::string curImagePathPng = iconPath + std::to_string(curSkillId) + ".png";
 					if (iniVal.compare(desc) != 0 || (!std::filesystem::exists(curImagePath.c_str()) && !std::filesystem::exists(curImagePathPng.c_str()))) {
 						std::this_thread::sleep_for(std::chrono::milliseconds(60000 / requestsPerMinute));
+#if _DEBUG
 						LOG("Downloading skill icon: ", curSkillId);
+#endif
 						
 						std::string downloadUrl = "https://render.guildwars2.com/file/" + desc;
 						if (downloadBinaryFile(downloadUrl, curImagePath)) {
+#if _DEBUG
 							LOG("Finished downloading skill icon.");
+#endif
 							binaryLoadedIcons.push_back(std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>(curSkillId, loadBinaryFileData(curImagePath)));
 							skillJsonValues[curSkillId] = desc;
 						} else {
@@ -339,7 +345,9 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 	out << outJson.dump();
 #endif
 		out.close();
+#if _DEBUG
 		LOG("Skillicon load thread stopping");
+#endif
 	} catch (const std::exception& e) {
 		LOG("Critical error in skill icon load thread: ", e.what());
 		LOG("Skill icon loading disabled to prevent crashes");
