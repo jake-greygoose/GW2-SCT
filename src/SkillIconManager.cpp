@@ -25,7 +25,17 @@ nlohmann::json getJSON(std::string url, std::function<void(std::map<std::string,
 		callback(emptyHeaders);
 	}
 	
-	return nlohmann::json::parse(response);
+	try {
+		return nlohmann::json::parse(response);
+	} catch (const nlohmann::json::parse_error& e) {
+		std::string errorMsg = "Invalid JSON response from " + fullUrl + ": " + std::string(e.what());
+		LOG("JSON parse error: ", errorMsg);
+		throw std::exception(errorMsg.c_str());
+	} catch (const nlohmann::json::exception& e) {
+		std::string errorMsg = "JSON error from " + fullUrl + ": " + std::string(e.what());
+		LOG("JSON error: ", errorMsg);
+		throw std::exception(errorMsg.c_str());
+	}
 }
 
 bool downloadBinaryFile(const std::string& url, const std::string& outputPath) {
@@ -198,50 +208,51 @@ std::string join(Range const& elements, const char* const delimiter) {
 
 void GW2_SCT::SkillIconManager::loadThreadCycle() {
 	LOG("Skillicon load thread started");
-	std::vector<std::string> files;
-	std::string iconPath = getSCTPath() + "icons\\";
-	CreateDirectory(iconPath.c_str(), NULL);
-	if (getFilesInDirectory(iconPath, files)) {
-		for (std::string iconFile : files) {
-			size_t itDot = iconFile.find_last_of(".");
-			std::string extension = iconFile.substr(itDot + 1);
-			if (extension == "jpg" || extension == "png") {
-				std::string fileName = iconFile.substr(0, itDot);
-				uint32_t skillID = std::strtoul(fileName.c_str(), NULL, 10);
-				if (skillID != 0) {
-					loadedIcons->insert(std::pair<uint32_t, SkillIcon>(skillID, SkillIcon(loadBinaryFileData(iconPath + iconFile), skillID)));
-					{
-						std::lock_guard<decltype(requestedIDs)> lock(requestedIDs);
-						if (std::find(requestedIDs->begin(), requestedIDs->end(), skillID) == requestedIDs->end()) {
-							requestedIDs->push_back(skillID);
+	try {
+		std::vector<std::string> files;
+		std::string iconPath = getSCTPath() + "icons\\";
+		CreateDirectory(iconPath.c_str(), NULL);
+		if (getFilesInDirectory(iconPath, files)) {
+			for (std::string iconFile : files) {
+				size_t itDot = iconFile.find_last_of(".");
+				std::string extension = iconFile.substr(itDot + 1);
+				if (extension == "jpg" || extension == "png") {
+					std::string fileName = iconFile.substr(0, itDot);
+					uint32_t skillID = std::strtoul(fileName.c_str(), NULL, 10);
+					if (skillID != 0) {
+						loadedIcons->insert(std::pair<uint32_t, SkillIcon>(skillID, SkillIcon(loadBinaryFileData(iconPath + iconFile), skillID)));
+						{
+							std::lock_guard<decltype(requestedIDs)> lock(requestedIDs);
+							if (std::find(requestedIDs->begin(), requestedIDs->end(), skillID) == requestedIDs->end()) {
+								requestedIDs->push_back(skillID);
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	std::string skillJsonFilename = getSCTPath() + "skill.json";
-	std::map<uint32_t,std::string> skillJsonValues;
-	if (file_exist(skillJsonFilename)) {
-		LOG("Loading skill.json");
-		std::string line, text;
-		std::ifstream in(skillJsonFilename);
-		while (std::getline(in, line)) {
-			text += line + "\n";
+		std::string skillJsonFilename = getSCTPath() + "skill.json";
+		std::map<uint32_t,std::string> skillJsonValues;
+		if (file_exist(skillJsonFilename)) {
+			LOG("Loading skill.json");
+			std::string line, text;
+			std::ifstream in(skillJsonFilename);
+			while (std::getline(in, line)) {
+				text += line + "\n";
+			}
+			in.close();
+			try {
+				skillJsonValues = nlohmann::json::parse(text);
+			} catch (std::exception& e) {
+				LOG("Error parsing skill.json");
+			}
+		} else {
+			LOG("Warning: could not find a skill.json");
 		}
-		in.close();
-		try {
-			skillJsonValues = nlohmann::json::parse(text);
-		} catch (std::exception& e) {
-			LOG("Error parsing skill.json");
-		}
-	} else {
-		LOG("Warning: could not find a skill.json");
-	}
 
-	std::regex renderAPIURLMatcher("/file/([A-Z0-9]+)/([0-9]+)\\.(png|jpg)");
-	while (keepLoadThreadRunning) {
+		std::regex renderAPIURLMatcher("/file/([A-Z0-9]+)/([0-9]+)\\.(png|jpg)");
+		while (keepLoadThreadRunning) {
 		if (requestedIDs->size() > 0) {
 			std::list<std::tuple<uint32_t, std::string, std::string>> loadableIconURLs;
 			std::vector<uint32_t> idListToRequestFromApi = {};
@@ -327,8 +338,15 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 #else
 	out << outJson.dump();
 #endif
-	out.close();
-	LOG("Skillicon load thread stopping");
+		out.close();
+		LOG("Skillicon load thread stopping");
+	} catch (const std::exception& e) {
+		LOG("Critical error in skill icon load thread: ", e.what());
+		LOG("Skill icon loading disabled to prevent crashes");
+	} catch (...) {
+		LOG("Unknown critical error in skill icon load thread");
+		LOG("Skill icon loading disabled to prevent crashes");
+	}
 }
 
 GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
