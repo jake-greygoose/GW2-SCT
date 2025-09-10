@@ -1,4 +1,5 @@
 #include "imgui_sct_widgets.h"
+#include "SkillFilterUI.h"
 #include <sstream>
 #include <iomanip>
 #include <vector>
@@ -428,7 +429,7 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::SkillFilter* opt) {
 
 	int typeInt = static_cast<int>(opt->type);
 	ImGui::PushItemWidth((available_size - style.ItemInnerSpacing.x) * 0.3f);
-	if (ImGui::Combo(("##filter-" + iStr + "-type").c_str(), &typeInt, GW2_SCT::Options::getSkillFilterTypeSelectionString().c_str())) {
+	if (ImGui::Combo(("##filter-" + iStr + "-type").c_str(), &typeInt, GW2_SCT::SkillFilterUI::getFilterTypeSelectionString().c_str())) {
 		opt->type = static_cast<GW2_SCT::FilterType>(typeInt);
 	}
 	ImGui::PopItemWidth();

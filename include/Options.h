@@ -25,7 +25,6 @@ namespace GW2_SCT {
 		static std::string getCurrentCharacterName();
 		static std::string getFontSelectionString(bool withMaster = true) { return withMaster ? fontSelectionStringWithMaster : fontSelectionString; };
 		static std::string getFontSizeTypeSelectionString() { return fontSizeTypeSelectionString; };
-		static std::string getSkillFilterTypeSelectionString() { return skillFilterTypeSelectionString; };
 		static bool isOptionsWindowOpen();
 		static bool isInScrollAreasTab();
 		static void paintScrollAreaOverlay(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
@@ -34,7 +33,6 @@ namespace GW2_SCT {
 		static void paintGeneral();
 		static void paintScrollAreas(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 		static void paintProfessionColors();
-		static void paintSkillFilters();
 		static void paintGlobalThresholds();
 		static void paintSkillIcons();
 		static options_struct options;
@@ -42,7 +40,6 @@ namespace GW2_SCT {
 		static std::string fontSelectionString;
 		static std::string fontSizeTypeSelectionString;
 		static std::string fontSelectionStringWithMaster;
-		static std::string skillFilterTypeSelectionString;
 
 		static std::chrono::steady_clock::time_point lastSaveRequest;
 		static bool saveRequested;
