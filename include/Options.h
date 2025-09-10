@@ -10,22 +10,19 @@ namespace GW2_SCT {
 	class ScrollArea;
 
 	std::map<char, std::string> mapParameterListToLanguage(const char* section, std::vector<char> list);
-	
-	void initProfileWithDefaults(std::shared_ptr<profile_options_struct> p);
 
 	class Options {
 	public:
-		static const std::shared_ptr<profile_options_struct> get() { return profile.operator std::shared_ptr<profile_options_struct>(); }
-		static ObservableValue<std::shared_ptr<profile_options_struct>> profile;
+		static const std::shared_ptr<profile_options_struct> get();
+		// Access to options struct for Profiles class
+		static options_struct& getOptionsStruct() { return options; }
 		static void paint(const std::vector<std::shared_ptr<ScrollArea>>& scrollAreas);
 		static void open();
 		static void save();
 		static void load();
 		static void requestSave();
 		static void processPendingSave();
-		static void processPendingProfileSwitch();
-		static void loadProfile(std::string characterName);
-		static std::string getCurrentCharacterName() { return currentCharacterName; }
+		static std::string getCurrentCharacterName();
 		static std::string getFontSelectionString(bool withMaster = true) { return withMaster ? fontSelectionStringWithMaster : fontSelectionString; };
 		static std::string getFontSizeTypeSelectionString() { return fontSizeTypeSelectionString; };
 		static std::string getSkillFilterTypeSelectionString() { return skillFilterTypeSelectionString; };
@@ -40,7 +37,6 @@ namespace GW2_SCT {
 		static void paintSkillFilters();
 		static void paintGlobalThresholds();
 		static void paintSkillIcons();
-		static void paintProfiles();
 		static options_struct options;
 		static bool windowIsOpen;
 		static std::string fontSelectionString;
@@ -48,16 +44,9 @@ namespace GW2_SCT {
 		static std::string fontSelectionStringWithMaster;
 		static std::string skillFilterTypeSelectionString;
 
-		static std::string currentProfileName;
-		static std::string currentCharacterName;
-
 		static std::chrono::steady_clock::time_point lastSaveRequest;
 		static bool saveRequested;
 		static const std::chrono::milliseconds SAVE_DELAY; // 500ms delay
-		
-		static std::mutex profileSwitchMutex;
-		static std::shared_ptr<profile_options_struct> pendingProfile;
-		static void requestProfileSwitch(std::shared_ptr<profile_options_struct> newProfile);
 	};
 
 	struct receiver_information {

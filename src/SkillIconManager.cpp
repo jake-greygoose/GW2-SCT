@@ -6,6 +6,7 @@
 #include <regex>
 #include "Common.h"
 #include "Options.h"
+#include "Profiles.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include "Texture.h"
@@ -96,7 +97,7 @@ std::unordered_map<uint32_t, std::pair<std::string, std::string>> GW2_SCT::Skill
 };
 
 void GW2_SCT::SkillIconManager::init() {
-	Options::profile.onAssign([=](std::shared_ptr<profile_options_struct> oldProfile, std::shared_ptr<profile_options_struct> newProfile) {
+	Profiles::profile.onAssign([=](std::shared_ptr<profile_options_struct> oldProfile, std::shared_ptr<profile_options_struct> newProfile) {
 		if (skillIconsEnabledCallbackId >= 0) {
 			oldProfile->skillIconsEnabled.removeOnAssign(skillIconsEnabledCallbackId);
 		}

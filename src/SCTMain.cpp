@@ -5,6 +5,7 @@
 #include <fstream>
 #include "imgui.h"
 #include "Options.h"
+#include "Profiles.h"
 #include "SkillIconManager.h"
 #include "FontManager.h"
 #include "Language.h"
@@ -40,7 +41,7 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	LOG("Running arcvers: ", arcvers);
 	LOG("Running sct version: ", SCT_VERSION_STRING, " / ", __DATE__, " / ", __TIME__);
 
-	Options::profile.onAssign(
+	Profiles::profile.onAssign(
 		[this](std::shared_ptr<profile_options_struct> oldProfile,
 			std::shared_ptr<profile_options_struct> newProfile)
 		{
@@ -171,7 +172,7 @@ uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char
 			if (src && src->self) {
 				if (selfInstID != ev1->src_instid || Options::getCurrentCharacterName().empty()) {
 					selfInstID = ev1->src_instid;
-					Options::loadProfile(std::string(src->name));
+					Profiles::loadForCharacter(std::string(src->name));
 				}
 			}
 		}
@@ -179,7 +180,7 @@ uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char
 			if (src && src->self) {
 				if (selfInstID != ev->src_instid || Options::getCurrentCharacterName().empty()) {
 					selfInstID = ev->src_instid;
-					Options::loadProfile(std::string(src->name));
+					Profiles::loadForCharacter(std::string(src->name));
 				}
 			}
 		}
@@ -358,7 +359,7 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	GW2_SCT::FontType::ProcessPendingAtlasUpdates();
 	FontType::ensureAtlasCreation();
 	
-	Options::processPendingProfileSwitch();
+	Profiles::processPendingSwitch();
 
 	// Options
 	Options::paint(scrollAreas);
