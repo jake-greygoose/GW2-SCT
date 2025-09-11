@@ -116,6 +116,17 @@ namespace GW2_SCT {
 		int  shortenNumbersPrecision = -1;
 		bool disableCombining = false;
 		float customScrollSpeed = -1.0f;
+		
+		// Live spacing and static animation options
+		float minLineSpacingPx = 12.0f;
+		float maxNudgeMsPerSecond = 0.0f;    // FPS-independent rate cap (ms/s) - disabled by default
+		float staticDisplayTimeMs = 3150.0f;
+		
+		// Simple overflow speed options
+		float overflowMaxFactor = 1.7f;      // Maximum speed multiplier (1.0-3.0)
+		float occupancyStart = 0.60f;        // Start speeding up at this occupancy (0.0-1.0)
+		float occupancyEnd = 0.90f;          // Reach max speed at this occupancy (0.0-1.0)
+		float overflowSmoothingTau = 0.25f;  // EMA smoothing time constant (seconds)
 	};
 	void to_json(nlohmann::json& j, const scroll_area_options_struct& p);
 	void from_json(const nlohmann::json& j, scroll_area_options_struct& p);

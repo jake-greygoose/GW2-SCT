@@ -19,7 +19,7 @@
 #include "SkillFilterUI.h"
 
 const char* TextAlignTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Align_Left), langStringG(GW2_SCT::LanguageKey::Text_Align_Center), langStringG(GW2_SCT::LanguageKey::Text_Align_Right) };
-const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right) };
+const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right), "Static" };
 const char* ScrollDirectionTexts[] = { "Down", "Up" };
 
 GW2_SCT::options_struct GW2_SCT::Options::options;
@@ -655,7 +655,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			
 			ImGui::Text("Text Flow");
 			ImGui::NextColumn();
-			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 3)) {
+			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 4)) {
 				requestSave();
 			}
 			ImGui::NextColumn();
@@ -729,6 +729,62 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					} else {
 						ImGui::Text("(%.0f px/s)", scrollAreaOptions->customScrollSpeed);
 					}
+					ImGui::PopStyleColor();
+				}
+				
+				ImGui::Separator();
+				ImGui::Text("Animation & Spacing");
+				
+				{
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::DragFloat("Min Line Spacing (px)", &scrollAreaOptions->minLineSpacingPx, 0.1f, 0.0f, 50.0f)) {
+						requestSave();
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					ImGui::Text("(%.1fpx)", scrollAreaOptions->minLineSpacingPx);
+					ImGui::PopStyleColor();
+				}
+				
+				{
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::SliderFloat("Spacing nudge rate (ms/s)", &scrollAreaOptions->maxNudgeMsPerSecond, 0.0f, 400.0f, "%.0f")) {
+						requestSave();
+					}
+					if (ImGui::IsItemHovered()) {
+						ImGui::SetTooltip("Upper limit on how much timing we adjust per second to keep lines apart. Lower = smoother; higher = snappier.");
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					ImGui::Text("(%.0fms/s)", scrollAreaOptions->maxNudgeMsPerSecond);
+					ImGui::PopStyleColor();
+				}
+				
+				if (scrollAreaOptions->textCurve == TextCurve::STATIC) {
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::DragFloat("Static Display Time (ms)", &scrollAreaOptions->staticDisplayTimeMs, 10.0f, 100.0f, 10000.0f)) {
+						requestSave();
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					ImGui::Text("(%.0fms)", scrollAreaOptions->staticDisplayTimeMs);
+					ImGui::PopStyleColor();
+				}
+				
+				ImGui::Separator();
+				ImGui::Text("Overflow Speed");
+				
+				{
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::SliderFloat("Overflow speed (max ×)", &scrollAreaOptions->overflowMaxFactor, 1.0f, 3.0f, "%.1fx")) {
+						requestSave();
+					}
+					if (ImGui::IsItemHovered()) {
+						ImGui::SetTooltip("When there's a queue, temporarily scroll faster (up to this multiple) to drain it. Returns to normal as soon as the queue clears.");
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					ImGui::Text("(%.1fx)", scrollAreaOptions->overflowMaxFactor);
 					ImGui::PopStyleColor();
 				}
 			}
