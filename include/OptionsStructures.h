@@ -20,7 +20,8 @@ namespace GW2_SCT {
 		LEFT = 0,
 		STRAIGHT,
 		RIGHT,
-		STATIC
+		STATIC,
+		ANGLED
 	};
 	extern int textCurveToInt(TextCurve type);
 	extern TextCurve intToTextCurve(int i);
@@ -117,16 +118,18 @@ namespace GW2_SCT {
 		bool disableCombining = false;
 		float customScrollSpeed = -1.0f;
 		
-		// Live spacing and static animation options
 		float minLineSpacingPx = 12.0f;
-		float maxNudgeMsPerSecond = 0.0f;    // FPS-independent rate cap (ms/s) - disabled by default
+		float maxNudgeMsPerSecond = 0.0f;
 		float staticDisplayTimeMs = 3150.0f;
 		
-		// Simple overflow speed options
-		float overflowMaxFactor = 1.7f;      // Maximum speed multiplier (1.0-3.0)
-		float occupancyStart = 0.60f;        // Start speeding up at this occupancy (0.0-1.0)
-		float occupancyEnd = 0.90f;          // Reach max speed at this occupancy (0.0-1.0)
-		float overflowSmoothingTau = 0.25f;  // EMA smoothing time constant (seconds)
+		float overflowMaxFactor = 1.7f;
+		float occupancyStart = 0.60f;
+		float occupancyEnd = 0.90f;
+		float overflowSmoothingTau = 0.25f;
+		
+		float angleDegrees = 15.0f;
+		float angleJitterDegrees = 5.0f;
+		int angledDirection = 0;
 	};
 	void to_json(nlohmann::json& j, const scroll_area_options_struct& p);
 	void from_json(const nlohmann::json& j, scroll_area_options_struct& p);
@@ -159,7 +162,7 @@ namespace GW2_SCT {
 				return false;
 			}
 
-			std::vector<std::pair<FilterAction, int>> matchingFilters; // action, specificity
+			std::vector<std::pair<FilterAction, int>> matchingFilters;
 			FilterAction combinedDefaultAction = FilterAction::ALLOW;
 
 			for (const std::string& filterSetName : assignedFilterSets) {

@@ -31,6 +31,7 @@ namespace GW2_SCT {
         case 1: return TextCurve::STRAIGHT;
         case 2: return TextCurve::RIGHT;
         case 3: return TextCurve::STATIC;
+        case 4: return TextCurve::ANGLED;
         default: return TextCurve::LEFT;
         }
     }
@@ -283,6 +284,9 @@ namespace GW2_SCT {
         j["occupancyStart"] = p.occupancyStart;
         j["occupancyEnd"] = p.occupancyEnd;
         j["overflowSmoothingTau"] = p.overflowSmoothingTau;
+        j["angleDegrees"] = p.angleDegrees;
+        j["angleJitterDegrees"] = p.angleJitterDegrees;
+        j["angledDirection"] = p.angledDirection;
         j["receivers"] = p.receivers;
     }
 
@@ -310,6 +314,9 @@ namespace GW2_SCT {
         if (j.contains("occupancyStart")) j.at("occupancyStart").get_to(p.occupancyStart);
         if (j.contains("occupancyEnd")) j.at("occupancyEnd").get_to(p.occupancyEnd);
         if (j.contains("overflowSmoothingTau")) j.at("overflowSmoothingTau").get_to(p.overflowSmoothingTau);
+        if (j.contains("angleDegrees")) j.at("angleDegrees").get_to(p.angleDegrees);
+        if (j.contains("angleJitterDegrees")) j.at("angleJitterDegrees").get_to(p.angleJitterDegrees);
+        if (j.contains("angledDirection")) j.at("angledDirection").get_to(p.angledDirection);
         if (j.contains("receivers")) j.at("receivers").get_to(p.receivers);
     }
 

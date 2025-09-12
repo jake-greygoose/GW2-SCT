@@ -1,7 +1,10 @@
+#define _USE_MATH_DEFINES
 #include "ScrollArea.h"
 #include "imgui.h"
 #include "Common.h"
 #include "Options.h"
+#include <cmath>
+#include <cstdlib>
 
 using namespace std::chrono;
 
@@ -58,6 +61,25 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 			}
 			
 			MessagePrerender preMessage = MessagePrerender(m, receiver);
+			
+			if (options->textCurve == TextCurve::ANGLED) {
+				if (options->angledDirection == 0) {
+					preMessage.angledSign = (angledMessageCounter % 2 == 0) ? 1 : -1;
+					angledMessageCounter++;
+				} else {
+					preMessage.angledSign = (options->angledDirection > 0) ? 1 : -1;
+				}
+				
+				float baseDegrees = options->angleDegrees;
+				float jitterRange = options->angleJitterDegrees;
+				float jitter = (std::rand() / (float)RAND_MAX * 2.0f - 1.0f) * jitterRange;
+				float totalDegrees = baseDegrees + jitter;
+				
+				totalDegrees = std::max(0.0f, std::min(45.0f, totalDegrees));
+				
+				preMessage.angledAngleRad = totalDegrees * (M_PI / 180.0f);
+			}
+			
 			if (preMessage.options != nullptr) {
 				messageQueue.push_back(std::move(preMessage));
 			}
@@ -318,6 +340,13 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 			pos.y += options->height - animatedHeight - messageHeight;
 		}
 	}
+	
+	float yDistanceForAngled = 0.0f;
+	if (options->textCurve != TextCurve::STATIC) {
+		float effectiveElapsedMs = std::max(0.0f, (float)time - m.liveOffsetMs);
+		float baseScrollSpeed = getEffectiveScrollSpeed();
+		yDistanceForAngled = effectiveElapsedMs * 0.001f * (baseScrollSpeed * m.personalFactor);
+	}
 
 	switch (options->textCurve) {
 	case GW2_SCT::TextCurve::LEFT:
@@ -329,6 +358,12 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 	case GW2_SCT::TextCurve::STRAIGHT:
 		break;
 	case GW2_SCT::TextCurve::STATIC:
+		break;
+	case GW2_SCT::TextCurve::ANGLED:
+		if (m.angledSign != 0) {
+			float xOffset = yDistanceForAngled * std::tan(m.angledAngleRad) * m.angledSign;
+			pos.x += xOffset;
+		}
 		break;
 	}
 
@@ -667,6 +702,10 @@ GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(const MessagePrerender& 
 		interpretedTextWidth = copy.interpretedTextWidth;
 		prerenderNeeded = copy.prerenderNeeded;
 	}
+	
+	angledSign = copy.angledSign;
+	angledAngleRad = copy.angledAngleRad;
+	
 	templateObserverId = options->outputTemplate.onAssign([this](const std::string& oldVal, const std::string& newVal) { this->update(); });
 	colorObserverId = options->color.onAssign([this](const std::string& oldVal, const std::string& newVal) { this->update(); });
 	fontObserverId = options->font.onAssign([this](const FontId& oldVal, const FontId& newVal) { this->update(); });

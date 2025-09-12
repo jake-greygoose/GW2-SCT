@@ -125,6 +125,14 @@
   F(Text_Curve_Left,)\
   F(Text_Curve_Straight,)\
   F(Text_Curve_Right,)\
+  F(Text_Curve_Static,)\
+  F(Text_Curve_Angled,)\
+  F(Angled_Angle_Degrees,)\
+  F(Angled_Angle_Jitter,)\
+  F(Angled_Direction,)\
+  F(Angled_Direction_Alternating,)\
+  F(Angled_Direction_Always_Left,)\
+  F(Angled_Direction_Always_Right,)\
   F(Old_Save_Popup_Title,)\
   F(Old_Save_Popup_Content,)\
   F(Old_Save_Popup_Backup_Made,)\

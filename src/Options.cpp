@@ -19,7 +19,7 @@
 #include "SkillFilterUI.h"
 
 const char* TextAlignTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Align_Left), langStringG(GW2_SCT::LanguageKey::Text_Align_Center), langStringG(GW2_SCT::LanguageKey::Text_Align_Right) };
-const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right), "Static" };
+const char* TextCurveTexts[] = { langStringG(GW2_SCT::LanguageKey::Text_Curve_Left), langStringG(GW2_SCT::LanguageKey::Text_Curve_Straight), langStringG(GW2_SCT::LanguageKey::Text_Curve_Right), langStringG(GW2_SCT::LanguageKey::Text_Curve_Static), langStringG(GW2_SCT::LanguageKey::Text_Curve_Angled) };
 const char* ScrollDirectionTexts[] = { "Down", "Up" };
 
 GW2_SCT::options_struct GW2_SCT::Options::options;
@@ -655,7 +655,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			
 			ImGui::Text("Text Flow");
 			ImGui::NextColumn();
-			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 4)) {
+			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 5)) {
 				requestSave();
 			}
 			ImGui::NextColumn();
@@ -769,6 +769,30 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
 					ImGui::Text("(%.0fms)", scrollAreaOptions->staticDisplayTimeMs);
 					ImGui::PopStyleColor();
+				}
+				
+				if (scrollAreaOptions->textCurve == TextCurve::ANGLED) {
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::SliderFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Angled_Angle_Degrees), &scrollAreaOptions->angleDegrees, 0.0f, 45.0f, "%.1f°")) {
+						requestSave();
+					}
+					
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::SliderFloat(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Angled_Angle_Jitter), &scrollAreaOptions->angleJitterDegrees, 0.0f, 15.0f, "%.1f°")) {
+						requestSave();
+					}
+					
+					const char* directionTexts[] = { 
+						langStringG(GW2_SCT::LanguageKey::Angled_Direction_Alternating), 
+						langStringG(GW2_SCT::LanguageKey::Angled_Direction_Always_Left), 
+						langStringG(GW2_SCT::LanguageKey::Angled_Direction_Always_Right) 
+					};
+					int directionIndex = (scrollAreaOptions->angledDirection == 0) ? 0 : (scrollAreaOptions->angledDirection > 0 ? 2 : 1);
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Angled_Direction), &directionIndex, directionTexts, 3)) {
+						scrollAreaOptions->angledDirection = (directionIndex == 0) ? 0 : (directionIndex == 2 ? 1 : -1);
+						requestSave();
+					}
 				}
 				
 				ImGui::Separator();
