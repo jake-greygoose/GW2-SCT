@@ -11,9 +11,12 @@
 #include "Language.h"
 #include "ExampleMessageOptions.h"
 #include "Texture.h"
+#include "Mumblelink.h"
 #include <chrono>
 #include <queue>
 #include <mutex>
+#include <codecvt>
+#include <locale>
 
 #if _DEBUG
 long uiFrames = 0;
@@ -150,6 +153,7 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 
 uintptr_t GW2_SCT::SCTMain::Release() {
 	SkillIconManager::cleanup();
+	MumbleLink::i().shutdown();
 	logFile.flush();
 	logFile.close();
 	return 0;
@@ -170,18 +174,12 @@ uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char
 		if (revision == 1) {
 			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
 			if (src && src->self) {
-				if (selfInstID != ev1->src_instid || Options::getCurrentCharacterName().empty()) {
-					selfInstID = ev1->src_instid;
-					Profiles::loadForCharacter(std::string(src->name));
-				}
+				selfInstID = ev1->src_instid;
 			}
 		}
 		else {
 			if (src && src->self) {
-				if (selfInstID != ev->src_instid || Options::getCurrentCharacterName().empty()) {
-					selfInstID = ev->src_instid;
-					Profiles::loadForCharacter(std::string(src->name));
-				}
+				selfInstID = ev->src_instid;
 			}
 		}
 	}
@@ -334,6 +332,15 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	#if _DEBUG
 		auto start_time = std::chrono::high_resolution_clock::now();
 	#endif
+
+	MumbleLink::i().onUpdate();
+
+	std::wstring mumbleCharacterName = MumbleLink::i().characterName();
+	if (!mumbleCharacterName.empty()) {
+		std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+		std::string currentCharacterName = converter.to_bytes(mumbleCharacterName);
+		Profiles::loadForCharacter(currentCharacterName);
+	}
 
 	GW2_SCT::Texture::BeginPresentCycle();
 
