@@ -5,6 +5,7 @@
 #include "Options.h"
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 
 using namespace std::chrono;
 
@@ -241,8 +242,8 @@ void GW2_SCT::ScrollArea::paint() {
 		if (!std::isnan(pair.first.staticY)) continue;
 		
 		float target = prevSpeedFactor;
-		float accelUpPerSec = 2.0f;  
-		float decelDownPerSec = 0.6f;
+		float accelUpPerSec = 1.0f;  
+		float decelDownPerSec = 0.8f;
 		
 		pair.first.ensureExtents();
 		
@@ -293,9 +294,9 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 		return false;
 	}
 	
-	float alpha = 1.f;
-	float fadeLength = 0.2f;	
-	float percentage = 0.0f;
+    float alpha = 1.f;
+    float fadeLength = 0.2f;	
+    float percentage = 0.0f;
 	
 	if (options->textCurve == TextCurve::STATIC) {
 		float effectiveTime = (float)time;
@@ -316,7 +317,15 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 		}
 	}
 
-	if (m.prerenderNeeded) m.prerenderText();
+    if (m.prerenderNeeded) m.prerenderText();
+
+    float globalOpacity = 1.0f;
+    if (auto prof = GW2_SCT::Options::get()) {
+        globalOpacity = std::clamp(prof->globalOpacity, 0.0f, 1.0f);
+    }
+    float areaOpacity = std::clamp(options->opacity, 0.0f, 1.0f);
+    float finalOpacity = options->opacityOverrideEnabled ? areaOpacity : globalOpacity;
+    float effectiveAlpha = std::clamp(alpha * finalOpacity, 0.0f, 1.0f);
 
 	m.ensureExtents();
 	float messageHeight = m.messageHeight;
@@ -379,21 +388,21 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 		}
 	}
 
-	ImDrawList* draw_list = ImGui::GetWindowDrawList();
-	for (TemplateInterpreter::InterpretedText text : m.interpretedText) {
-		ImVec2 curPos = ImVec2(pos.x + text.offset.x, pos.y + text.offset.y);
-		if (text.icon == nullptr) {
-			ImU32 blackWithAlpha = ImGui::GetColorU32(ImVec4(0, 0, 0, alpha));
-			if (GW2_SCT::Options::get()->dropShadow) {
-				m.font->drawAtSize(text.str, m.fontSize, ImVec2(curPos.x + 2, curPos.y + 2), blackWithAlpha);
-			}
-			ImU32 actualCol = text.color & ImGui::GetColorU32(ImVec4(1, 1, 1, alpha));
-			m.font->drawAtSize(text.str, m.fontSize, curPos, actualCol);
-		}
-		else {
-			text.icon->draw(curPos, text.size, ImGui::GetColorU32(ImVec4(1, 1, 1, alpha)));
-		}
-	}
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    for (TemplateInterpreter::InterpretedText text : m.interpretedText) {
+        ImVec2 curPos = ImVec2(pos.x + text.offset.x, pos.y + text.offset.y);
+        if (text.icon == nullptr) {
+            ImU32 blackWithAlpha = ImGui::GetColorU32(ImVec4(0, 0, 0, effectiveAlpha));
+            if (GW2_SCT::Options::get()->dropShadow) {
+                m.font->drawAtSize(text.str, m.fontSize, ImVec2(curPos.x + 2, curPos.y + 2), blackWithAlpha);
+            }
+            ImU32 actualCol = text.color & ImGui::GetColorU32(ImVec4(1, 1, 1, effectiveAlpha));
+            m.font->drawAtSize(text.str, m.fontSize, curPos, actualCol);
+        }
+        else {
+            text.icon->draw(curPos, text.size, ImGui::GetColorU32(ImVec4(1, 1, 1, effectiveAlpha)));
+        }
+    }
 
 	return true;
 }

@@ -154,7 +154,6 @@
   F(General_Scrolling_Speed,)\
   F(General_Scrolling_Speed_Toolip,)\
   F(General_Drop_Shadow,)\
-  F(General_Global_Opacity,)\
   F(General_Max_Messages,)\
   F(General_Max_Messages_Toolip,)\
   F(General_Combine_Messages,)\
@@ -262,7 +261,6 @@
   F(Clear_Recorded_Messages,)\
   F(Custom_Scroll_Speed,)\
   F(Custom_Scroll_Speed_Tooltip,)\
-  F(Custom_Opacity,)\
   F(Shorten_Numbers,)\
   F(Shorten_Numbers_Precision,)\
   F(Abbreviate_Skill_Names,)\

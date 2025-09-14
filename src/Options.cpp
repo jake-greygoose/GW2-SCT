@@ -443,11 +443,11 @@ bool GW2_SCT::Options::isOptionsWindowOpen() {
 }
 
 void GW2_SCT::Options::paintGeneral() {
-	auto currentProfile = Profiles::get();
-	if (!currentProfile) return;
-	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Enabled), &currentProfile->sctEnabled)) {
-		requestSave();
-	}
+    auto currentProfile = Profiles::get();
+    if (!currentProfile) return;
+    if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Enabled), &currentProfile->sctEnabled)) {
+        requestSave();
+    }
 
 	if (ImGui::ClampingDragFloat(langString(LanguageCategory::Option_UI, LanguageKey::General_Scrolling_Speed), &currentProfile->scrollSpeed, 1.f, 1.f, 2000.f)) {
 		requestSave();
@@ -455,9 +455,20 @@ void GW2_SCT::Options::paintGeneral() {
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip(langString(LanguageCategory::Option_UI, LanguageKey::General_Scrolling_Speed_Toolip));
 
-	if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Drop_Shadow), &currentProfile->dropShadow)) {
-		requestSave();
-	}
+    if (ImGui::Checkbox(langString(LanguageCategory::Option_UI, LanguageKey::General_Drop_Shadow), &currentProfile->dropShadow)) {
+        requestSave();
+    }
+
+    {
+        ImGui::SetNextItemWidth(120);
+        if (ImGui::SliderFloat(langString(LanguageCategory::Option_UI, LanguageKey::General_Global_Opacity), &currentProfile->globalOpacity, 0.0f, 1.0f, "%.2f")) {
+            requestSave();
+        }
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+        ImGui::Text("(%.0f%%)", currentProfile->globalOpacity * 100.0f);
+        ImGui::PopStyleColor();
+    }
 
 	if (ImGui::ClampingDragInt(langString(LanguageCategory::Option_UI, LanguageKey::General_Max_Messages), &currentProfile->messagesInStack, 1, 1, 8)) {
 		requestSave();
@@ -706,31 +717,54 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Show_Combined_Hit_Count), &scrollAreaOptions->showCombinedHitCount)) {
 					requestSave();
 				}
-				{
-					bool useCustomSpeed = scrollAreaOptions->customScrollSpeed > 0.0f;
-					if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Custom_Scroll_Speed), &useCustomSpeed)) {
-						scrollAreaOptions->customScrollSpeed = useCustomSpeed ? 90.0f : -1.0f;
-						requestSave();
-					}
-					ImGui::SameLine();
-					if (!useCustomSpeed) ImGui::BeginDisabled();
-					ImGui::SetNextItemWidth(120);
-					float speed = (scrollAreaOptions->customScrollSpeed > 0.0f ? scrollAreaOptions->customScrollSpeed : 90.0f);
-					if (ImGui::ClampingDragFloat("##customspeed", &speed, 1.0f, 1.0f, 2000.0f)) {
-						scrollAreaOptions->customScrollSpeed = speed;
-						requestSave();
-					}
-					if (!useCustomSpeed) ImGui::EndDisabled();
-					
-					ImGui::SameLine();
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-					if (!useCustomSpeed) {
-						ImGui::Text("(uses global: %.0f)", currentProfile->scrollSpeed);
-					} else {
-						ImGui::Text("(%.0f px/s)", scrollAreaOptions->customScrollSpeed);
-					}
-					ImGui::PopStyleColor();
-				}
+            {
+                bool useCustomSpeed = scrollAreaOptions->customScrollSpeed > 0.0f;
+                if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Custom_Scroll_Speed), &useCustomSpeed)) {
+                    scrollAreaOptions->customScrollSpeed = useCustomSpeed ? 90.0f : -1.0f;
+                    requestSave();
+                }
+                ImGui::SameLine();
+                if (!useCustomSpeed) ImGui::BeginDisabled();
+                ImGui::SetNextItemWidth(120);
+                float speed = (scrollAreaOptions->customScrollSpeed > 0.0f ? scrollAreaOptions->customScrollSpeed : 90.0f);
+                if (ImGui::ClampingDragFloat("##customspeed", &speed, 1.0f, 1.0f, 2000.0f)) {
+                    scrollAreaOptions->customScrollSpeed = speed;
+                    requestSave();
+                }
+                if (!useCustomSpeed) ImGui::EndDisabled();
+                
+                ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                if (!useCustomSpeed) {
+                    ImGui::Text("(uses global: %.0f)", currentProfile->scrollSpeed);
+                } else {
+                    ImGui::Text("(%.0f px/s)", scrollAreaOptions->customScrollSpeed);
+                }
+                ImGui::PopStyleColor();
+            }
+
+            {
+                bool useCustomOpacity = scrollAreaOptions->opacityOverrideEnabled;
+                if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Custom_Opacity), &useCustomOpacity)) {
+                    scrollAreaOptions->opacityOverrideEnabled = useCustomOpacity;
+                    requestSave();
+                }
+                ImGui::SameLine();
+                if (!useCustomOpacity) ImGui::BeginDisabled();
+                ImGui::SetNextItemWidth(120);
+                if (ImGui::SliderFloat("##area_opacity", &scrollAreaOptions->opacity, 0.0f, 1.0f, "%.2f")) {
+                    requestSave();
+                }
+                if (!useCustomOpacity) ImGui::EndDisabled();
+                ImGui::SameLine();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+                if (useCustomOpacity) {
+                    ImGui::Text("(override %.0f%%)", scrollAreaOptions->opacity * 100.0f);
+                } else {
+                    ImGui::Text("(inherits global: %.0f%%)", currentProfile->globalOpacity * 100.0f);
+                }
+                ImGui::PopStyleColor();
+            }
 				
 				ImGui::Separator();
 				ImGui::Text("Animation & Spacing");

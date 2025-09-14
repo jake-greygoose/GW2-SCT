@@ -46,3 +46,4 @@ RelWithDebInfo
 cmake_install.cmake
 *.log
 *.md
+/src/Options.tmp

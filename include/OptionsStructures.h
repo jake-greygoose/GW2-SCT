@@ -57,6 +57,7 @@ namespace GW2_SCT {
 		bool sctEnabled = true;
 		float scrollSpeed = 90.f;
 		bool dropShadow = true;
+		float globalOpacity = 1.0f;
 		int messagesInStack = 3;
 		bool combineAllMessages = true;
 		FontId masterFont = 0;
@@ -110,6 +111,8 @@ namespace GW2_SCT {
 		float offsetY = 0;
 		float width = 0;
 		float height = 0;
+		bool opacityOverrideEnabled = false;
+		float opacity = 1.0f;
 		TextAlign textAlign = TextAlign::LEFT;
 		TextCurve textCurve = TextCurve::LEFT;
 		ScrollDirection scrollDirection = ScrollDirection::DOWN;

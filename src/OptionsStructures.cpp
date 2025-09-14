@@ -188,6 +188,7 @@ namespace GW2_SCT {
         j["sctEnabled"] = p.sctEnabled;
         j["scrollSpeed"] = p.scrollSpeed;
         j["dropShadow"] = p.dropShadow;
+        j["globalOpacity"] = p.globalOpacity;
         j["messagesInStack"] = p.messagesInStack;
         j["combineAllMessages"] = p.combineAllMessages;
         j["masterFont"] = p.masterFont;
@@ -221,6 +222,7 @@ namespace GW2_SCT {
         if (j.contains("sctEnabled")) j.at("sctEnabled").get_to(p.sctEnabled);
         if (j.contains("scrollSpeed")) j.at("scrollSpeed").get_to(p.scrollSpeed);
         if (j.contains("dropShadow")) j.at("dropShadow").get_to(p.dropShadow);
+        if (j.contains("globalOpacity")) j.at("globalOpacity").get_to(p.globalOpacity);
         if (j.contains("messagesInStack")) j.at("messagesInStack").get_to(p.messagesInStack);
         if (j.contains("combineAllMessages")) j.at("combineAllMessages").get_to(p.combineAllMessages);
         if (j.contains("masterFont")) j.at("masterFont").get_to(p.masterFont);
@@ -275,6 +277,8 @@ namespace GW2_SCT {
         j["offsetY"] = p.offsetY;
         j["width"] = p.width;
         j["height"] = p.height;
+        j["opacityOverrideEnabled"] = p.opacityOverrideEnabled;
+        j["opacity"] = p.opacity;
         j["textAlign"] = textAlignToInt(p.textAlign);
         j["textCurve"] = textCurveToInt(p.textCurve);
         j["scrollDirection"] = scrollDirectionToInt(p.scrollDirection);
@@ -303,6 +307,8 @@ namespace GW2_SCT {
         if (j.contains("offsetY")) j.at("offsetY").get_to(p.offsetY);
         if (j.contains("width")) j.at("width").get_to(p.width);
         if (j.contains("height")) j.at("height").get_to(p.height);
+        if (j.contains("opacityOverrideEnabled")) j.at("opacityOverrideEnabled").get_to(p.opacityOverrideEnabled);
+        if (j.contains("opacity")) j.at("opacity").get_to(p.opacity);
         if (j.contains("textAlign")) { int v{}; j.at("textAlign").get_to(v); p.textAlign = intToTextAlign(v); }
         if (j.contains("textCurve")) { int v{}; j.at("textCurve").get_to(v); p.textCurve = intToTextCurve(v); }
         if (j.contains("scrollDirection")) { int v{}; j.at("scrollDirection").get_to(v); p.scrollDirection = intToScrollDirection(v); }
