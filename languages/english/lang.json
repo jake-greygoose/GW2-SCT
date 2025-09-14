@@ -143,7 +143,13 @@
     "Show_Combined_Hit_Count": "Show combined hit count",
     "Disable_Message_Combining": "Disable message combining",
     "Scroll_Direction": "Scroll Direction",
-    "Advanced_Options": "Advanced Options"
+    "Advanced_Options": "Advanced Options",
+    "Angled_Angle_Degrees": "Angle (degrees)",
+    "Angled_Angle_Jitter": "Angle Jitter (degrees)",
+    "Angled_Direction": "Direction",
+    "Angled_Direction_Alternating": "Alternating",
+    "Angled_Direction_Always_Left": "Always Left",
+    "Angled_Direction_Always_Right": "Always Right"
   },
   "Receiver_Option_UI": {
     "Template": "Template",
@@ -192,6 +198,9 @@
     "Profile_Source_No_Character": "Source: Default Profile (No Character)",
     "Profile_Management_Title": "Profile Management:",
     "Manage_Profiles_Title": "Manage Profiles:",
+    "PvE_Default_Profile": "PvE:",
+    "WvW_Default_Profile": "WvW:",
+    "Profile_Label": "Profile:",
     "Scroll_Areas_Count": "Scroll Areas (%d):",
     "No_Scroll_Areas": "No scroll areas configured"
   },

@@ -405,7 +405,7 @@ void GW2_SCT::Options::load() {
 
 			// Ensure profile is set during initial load
 			if (!Profiles::get()) {
-				Profiles::requestSwitch(options.profiles[options.globalProfile]);
+				Profiles::requestSwitch(options.profiles[options.pveDefaultProfile]);
 			}
 			Profiles::loadForCharacter("");
 			Profiles::processPendingSwitch();

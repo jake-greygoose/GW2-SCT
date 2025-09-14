@@ -249,6 +249,9 @@
   F(Profile_Source_No_Character,)\
   F(Profile_Management_Title,)\
   F(Manage_Profiles_Title,)\
+  F(PvE_Default_Profile,)\
+  F(WvW_Default_Profile,)\
+  F(Profile_Label,)\
   F(Scroll_Areas_Count,)\
   F(No_Scroll_Areas,)\
   F(Start_Recording,)\
@@ -277,4 +280,10 @@
   F(Receiver_Heal_Threshold,)\
   F(Receiver_Barrier_Threshold,)\
   F(Receiver_Threshold_Respect_Filters,)\
-  F(Receiver_Threshold_Respect_Filters_Tooltip,)
+  F(Receiver_Threshold_Respect_Filters_Tooltip,)\
+  F(Default_Profiles_Title,)\
+  F(Character_Specific_Overrides_Title,)\
+  F(Profile_Actions_Title,)\
+  F(PvE_Override_Checkbox,)\
+  F(WvW_Override_Checkbox,)\
+  F(New_Profile_Name,)

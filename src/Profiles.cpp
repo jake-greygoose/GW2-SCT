@@ -8,9 +8,10 @@
 #include "json.hpp"
 #include "Common.h"
 #include "imgui.h"
+#include "Language.h"
+#include "Mumblelink.h"
 #include "imgui_stdlib.h"
 #include "imgui_sct_widgets.h"
-#include "Language.h"
 #include "SkillFilterStructures.h"
 #include "Options.h"
 
@@ -45,23 +46,33 @@ void GW2_SCT::Profiles::processPendingSwitch() {
 void GW2_SCT::Profiles::loadForCharacter(std::string characterName) {
 	if (currentCharacterName != characterName) {
 		currentCharacterName = characterName;
-		auto& options = Options::getOptionsStruct();
-		auto profileMappingIterator = options.characterProfileMap.find(currentCharacterName);
-		if (profileMappingIterator == options.characterProfileMap.end()) {
-			if (currentProfileName != options.globalProfile) {
-				currentProfileName = options.globalProfile;
-				requestSwitch(options.profiles[currentProfileName]);
-			} else if (!get()) {
-				// Ensure profile is set even if names match
-				requestSwitch(options.profiles[currentProfileName]);
-			}
+	}
+	
+	auto& options = Options::getOptionsStruct();
+	std::string newProfileName;
+	bool isInWvW = MumbleLink::i().isInWvW();
+	
+	if (isInWvW) {
+		auto it = options.characterWvwProfileMap.find(currentCharacterName);
+		if (it != options.characterWvwProfileMap.end()) {
+			newProfileName = it->second;
+		} else {
+			newProfileName = options.wvwDefaultProfile;
 		}
-		else {
-			if (currentProfileName != profileMappingIterator->second) {
-				currentProfileName = profileMappingIterator->second;
-				requestSwitch(options.profiles[currentProfileName]);
-			}
+	} else {
+		auto it = options.characterPveProfileMap.find(currentCharacterName);
+		if (it != options.characterPveProfileMap.end()) {
+			newProfileName = it->second;
+		} else {
+			newProfileName = options.pveDefaultProfile;
 		}
+	}
+	
+	if (currentProfileName != newProfileName) {
+		currentProfileName = newProfileName;
+		requestSwitch(options.profiles[currentProfileName]);
+	} else if (!get()) {
+		requestSwitch(options.profiles[currentProfileName]);
 	}
 }
 
@@ -153,10 +164,23 @@ void GW2_SCT::Profiles::paintUI() {
 		ImGui::PopFont();
 		
 		if (currentCharacterName != "") {
-			if (doesCharacterMappingExist) {
-				ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.4f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_Character_Override), currentCharacterName.c_str());
+			bool isInWvW = MumbleLink::i().isInWvW();
+			bool hasPveOverride = options.characterPveProfileMap.find(currentCharacterName) != options.characterPveProfileMap.end();
+			bool hasWvwOverride = options.characterWvwProfileMap.find(currentCharacterName) != options.characterWvwProfileMap.end();
+			bool hasOverride = isInWvW ? hasWvwOverride : hasPveOverride;
+			
+			if (isInWvW) {
+				ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.7f, 1.0f), "WvW Mode - Character: %s", currentCharacterName.c_str());
 			} else {
-				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_Default_Profile), currentCharacterName.c_str());
+				ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.9f, 1.0f), "PvE Mode - Character: %s", currentCharacterName.c_str());
+			}
+			
+			if (hasOverride) {
+				std::string overrideType = isInWvW ? "WvW" : "PvE";
+				ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.4f, 1.0f), "Source: %s Character Override", overrideType.c_str());
+			} else {
+				std::string defaultType = isInWvW ? "WvW" : "PvE";
+				ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Source: %s Default Profile", defaultType.c_str());
 			}
 		} else {
 			ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Source_No_Character));
@@ -194,12 +218,53 @@ void GW2_SCT::Profiles::paintUI() {
 	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Management_Title));
 	ImGui::Spacing();
 
-	if (ImGui::BeginCombo("Default Profile:", options.globalProfile.c_str())) {
+	ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Default_Profiles_Title));
+	ImGui::Indent();
+	
+	ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::PvE_Default_Profile));
+	ImGui::SameLine(100);
+	ImGui::SetNextItemWidth(200);
+	if (ImGui::BeginCombo("##PvEDefault", options.pveDefaultProfile.c_str())) {
 		for (auto& nameAndProfile : options.profiles) {
-			if (ImGui::Selectable((nameAndProfile.first + "##profile-selectable").c_str())) {
-				if (options.globalProfile != nameAndProfile.first) {
-					options.globalProfile = nameAndProfile.first;
-					if (!doesCharacterMappingExist) {
+			if (ImGui::Selectable((nameAndProfile.first + "##pve-default-selectable").c_str())) {
+				if (options.pveDefaultProfile != nameAndProfile.first) {
+					options.pveDefaultProfile = nameAndProfile.first;
+					if (!MumbleLink::i().isInWvW() && !doesCharacterMappingExist) {
+						currentProfileName = nameAndProfile.first;
+						requestSwitch(nameAndProfile.second);
+					}
+					Options::requestSave();
+				}
+			}
+			if (ImGui::IsItemHovered()) {
+				ImGui::BeginTooltip();
+				ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
+				ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
+				if (!nameAndProfile.second->scrollAreaOptions.empty()) {
+					ImGui::Separator();
+					for (auto& area : nameAndProfile.second->scrollAreaOptions) {
+						if (area->enabled) {
+							ImGui::Text("• %s", area->name.c_str());
+						} else {
+							ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "• %s", area->name.c_str());
+						}
+					}
+				}
+				ImGui::EndTooltip();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::WvW_Default_Profile));
+	ImGui::SameLine(100);
+	ImGui::SetNextItemWidth(200);
+	if (ImGui::BeginCombo("##WvWDefault", options.wvwDefaultProfile.c_str())) {
+		for (auto& nameAndProfile : options.profiles) {
+			if (ImGui::Selectable((nameAndProfile.first + "##wvw-default-selectable").c_str())) {
+				if (options.wvwDefaultProfile != nameAndProfile.first) {
+					options.wvwDefaultProfile = nameAndProfile.first;
+					if (MumbleLink::i().isInWvW() && options.characterWvwProfileMap.find(currentCharacterName) == options.characterWvwProfileMap.end()) {
 						currentProfileName = nameAndProfile.first;
 						requestSwitch(nameAndProfile.second);
 					}
@@ -226,60 +291,109 @@ void GW2_SCT::Profiles::paintUI() {
 		ImGui::EndCombo();
 	}
 	
+	ImGui::Unindent();
+	
 	ImGui::Spacing();
 	ImGui::Spacing();
 	
 	if (currentCharacterName != "") {
-		if (ImGui::Checkbox("Character-Specific Override", &doesCharacterMappingExist)) {
-			if (doesCharacterMappingExist) {
-				options.characterProfileMap[currentCharacterName] = currentProfileName;
-			}
-			else {
-				currentProfileName = options.globalProfile;
-				requestSwitch(options.profiles[currentProfileName]);
-				options.characterProfileMap.erase(currentCharacterName);
+		ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Character_Specific_Overrides_Title));
+		ImGui::TextColored(ImVec4(0.7f, 0.9f, 0.7f, 1.0f), "Character: %s", currentCharacterName.c_str());
+		if (MumbleLink::i().isInWvW()) {
+			ImGui::SameLine();
+			ImGui::TextColored(ImVec4(0.9f, 0.7f, 0.7f, 1.0f), "(in WvW)");
+		} else {
+			ImGui::SameLine();
+			ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.9f, 1.0f), "(in PvE)");
+		}
+		
+		ImGui::Indent();
+		
+		bool hasPveOverride = options.characterPveProfileMap.find(currentCharacterName) != options.characterPveProfileMap.end();
+		if (ImGui::Checkbox(Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::PvE_Override_Checkbox), &hasPveOverride)) {
+			if (hasPveOverride) {
+				options.characterPveProfileMap[currentCharacterName] = currentProfileName;
+			} else {
+				options.characterPveProfileMap.erase(currentCharacterName);
+				if (!MumbleLink::i().isInWvW()) {
+					currentProfileName = options.pveDefaultProfile;
+					requestSwitch(options.profiles[currentProfileName]);
+				}
 			}
 			Options::requestSave();
 		}
 		
-		if (!doesCharacterMappingExist) {
-			ImGui::BeginDisabled();
+		if (hasPveOverride) {
+			ImGui::Indent();
+			std::string currentPveProfile = options.characterPveProfileMap[currentCharacterName];
+			ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Label));
+			ImGui::SameLine(120);
+			ImGui::SetNextItemWidth(180);
+			if (ImGui::BeginCombo("##CharacterPvEProfile", currentPveProfile.c_str())) {
+				for (auto& nameAndProfile : options.profiles) {
+					if (ImGui::Selectable((nameAndProfile.first + "##character-pve-profile-selectable").c_str())) {
+						options.characterPveProfileMap[currentCharacterName] = nameAndProfile.first;
+						if (!MumbleLink::i().isInWvW()) {
+							currentProfileName = nameAndProfile.first;
+							requestSwitch(nameAndProfile.second);
+						}
+						Options::requestSave();
+					}
+					if (ImGui::IsItemHovered()) {
+						ImGui::BeginTooltip();
+						ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
+						ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
+						ImGui::EndTooltip();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::Unindent();
 		}
 		
-		ImGui::Indent();
-		if (ImGui::BeginCombo("Override Profile:", currentProfileName.c_str())) {
-			for (auto& nameAndProfile : options.profiles) {
-				if (ImGui::Selectable((nameAndProfile.first + "##character-profile-selectable").c_str())) {
-					currentProfileName = nameAndProfile.first;
-					requestSwitch(nameAndProfile.second);
-					options.characterProfileMap[currentCharacterName] = currentProfileName;
-					Options::requestSave();
-				}
-				if (ImGui::IsItemHovered()) {
-					ImGui::BeginTooltip();
-					ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
-					ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
-					if (!nameAndProfile.second->scrollAreaOptions.empty()) {
-						ImGui::Separator();
-						for (auto& area : nameAndProfile.second->scrollAreaOptions) {
-							if (area->enabled) {
-								ImGui::Text("• %s", area->name.c_str());
-							} else {
-								ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "• %s", area->name.c_str());
-							}
-						}
-					}
-					ImGui::EndTooltip();
+		bool hasWvwOverride = options.characterWvwProfileMap.find(currentCharacterName) != options.characterWvwProfileMap.end();
+		if (ImGui::Checkbox(Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::WvW_Override_Checkbox), &hasWvwOverride)) {
+			if (hasWvwOverride) {
+				options.characterWvwProfileMap[currentCharacterName] = currentProfileName;
+			} else {
+				options.characterWvwProfileMap.erase(currentCharacterName);
+				if (MumbleLink::i().isInWvW()) {
+					currentProfileName = options.wvwDefaultProfile;
+					requestSwitch(options.profiles[currentProfileName]);
 				}
 			}
-			ImGui::EndCombo();
+			Options::requestSave();
 		}
+		
+		if (hasWvwOverride) {
+			ImGui::Indent();
+			std::string currentWvwProfile = options.characterWvwProfileMap[currentCharacterName];
+			ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Label));
+			ImGui::SameLine(120);
+			ImGui::SetNextItemWidth(180);
+			if (ImGui::BeginCombo("##CharacterWvWProfile", currentWvwProfile.c_str())) {
+				for (auto& nameAndProfile : options.profiles) {
+					if (ImGui::Selectable((nameAndProfile.first + "##character-wvw-profile-selectable").c_str())) {
+						options.characterWvwProfileMap[currentCharacterName] = nameAndProfile.first;
+						if (MumbleLink::i().isInWvW()) {
+							currentProfileName = nameAndProfile.first;
+							requestSwitch(nameAndProfile.second);
+						}
+						Options::requestSave();
+					}
+					if (ImGui::IsItemHovered()) {
+						ImGui::BeginTooltip();
+						ImGui::Text("Profile: %s", nameAndProfile.first.c_str());
+						ImGui::Text("Scroll Areas: %d", (int)nameAndProfile.second->scrollAreaOptions.size());
+						ImGui::EndTooltip();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::Unindent();
+		}
+		
 		ImGui::Unindent();
-		
-		if (!doesCharacterMappingExist) {
-			ImGui::EndDisabled();
-		}
-		
 		ImGui::Spacing();
 	}
 	
@@ -287,7 +401,7 @@ void GW2_SCT::Profiles::paintUI() {
 	ImGui::Spacing();
 	ImGui::Spacing();
 	
-	ImGui::Text("Profile Actions:");
+	ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Actions_Title));
 	ImGui::Spacing();
 	
 	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Current_Profile_Heading));
@@ -297,7 +411,10 @@ void GW2_SCT::Profiles::paintUI() {
 	}
 	std::string nameCopy = currentProfileName;
 	bool changedBG = false;
-	if (ImGui::InputText(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Current_Profile_Name), "profile-name").c_str(), &nameCopy, ImGuiInputTextFlags_CallbackAlways, [](ImGuiInputTextCallbackData* data) {
+	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Current_Profile_Name));
+	ImGui::SameLine(100);
+	ImGui::SetNextItemWidth(200);
+	if (ImGui::InputText("##ProfileName", &nameCopy, ImGuiInputTextFlags_CallbackAlways, [](ImGuiInputTextCallbackData* data) {
 		bool* d = static_cast<bool*>(data->UserData);
 		std::string text(data->Buf);
 		auto& options = Options::getOptionsStruct();
@@ -308,9 +425,6 @@ void GW2_SCT::Profiles::paintUI() {
 		return 0;
 		}, &changedBG)) {
 		if (!changedBG && nameCopy != currentProfileName) {
-			if (options.globalProfile == currentProfileName) {
-				options.globalProfile = nameCopy;
-			}
 			options.profiles[nameCopy] = profile;
 			options.profiles.erase(currentProfileName);
 			for (auto& characterProfileMapping : options.characterProfileMap) {
@@ -343,9 +457,6 @@ void GW2_SCT::Profiles::paintUI() {
 		}
 		nlohmann::json j = *profile.operator std::shared_ptr<profile_options_struct>().get();
 		options.profiles[copyName] = std::make_shared<profile_options_struct>(j);
-		if (options.globalProfile == currentProfileName) {
-			options.globalProfile = copyName;
-		}
 		for (auto& characterProfileMapping : options.characterProfileMap) {
 			if (characterProfileMapping.second == currentProfileName) {
 				characterProfileMapping.second = copyName;
@@ -357,7 +468,7 @@ void GW2_SCT::Profiles::paintUI() {
 	}
 	ImGui::SameLine();
 	if (ImGui::Button(ImGui::BuildVisibleLabel(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Create_Profile_New), "profile-new-button").c_str())) {
-		std::string newProfileName = "New Profile";
+		std::string newProfileName = Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::New_Profile_Name);
 		if (options.profiles.find(newProfileName) != options.profiles.end()) {
 			int i = 1;
 			while (options.profiles.find(newProfileName + " " + std::to_string(i)) != options.profiles.end()) { i++; }
@@ -373,7 +484,11 @@ void GW2_SCT::Profiles::paintUI() {
 			options.characterProfileMap[currentCharacterName] = newProfileName;
 		}
 		else {
-			options.globalProfile = newProfileName;
+			if (MumbleLink::i().isInWvW()) {
+				options.wvwDefaultProfile = newProfileName;
+			} else {
+				options.pveDefaultProfile = newProfileName;
+			}
 		}
 		currentProfileName = newProfileName;
 		requestSwitch(newProfile);
@@ -395,8 +510,11 @@ void GW2_SCT::Profiles::paintUI() {
 		ImGui::Text(langString(GW2_SCT::LanguageCategory::Profile_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Content));
 		ImGui::Separator();
 		if (ImGui::Button(ImGui::BuildVisibleLabel(langString(GW2_SCT::LanguageCategory::Profile_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Confirmation), "delete-profile-modal-confirm").c_str(), ImVec2(120, 0))) {
-			if (options.globalProfile == currentProfileName) {
-				options.globalProfile = defaultProfileName;
+			if (options.pveDefaultProfile == currentProfileName) {
+				options.pveDefaultProfile = defaultProfileName;
+			}
+			if (options.wvwDefaultProfile == currentProfileName) {
+				options.wvwDefaultProfile = defaultProfileName;
 			}
 			for (auto& characterProfileMapping : options.characterProfileMap) {
 				if (characterProfileMapping.second == currentProfileName) {

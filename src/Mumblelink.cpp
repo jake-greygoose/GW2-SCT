@@ -4,6 +4,7 @@
 #include <codecvt>
 #include <locale>
 #include <sstream>
+#include <set>
 
 namespace GW2_SCT {
 
@@ -58,14 +59,12 @@ bool MumbleLink::initialize() {
         if (hMapFile == nullptr) {
             hMapFile = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, linkName.c_str());
             if (hMapFile == nullptr) {
-                LOG("MumbleLink: Failed to access default MumbleLink.");
                 return false;
             }
         }
     } else {
         hMapFile = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(MumbleLinkData), linkName.c_str());
         if (hMapFile == nullptr) {
-            LOG("MumbleLink: Failed to create shared memory for '", linkNameStr, "'");
             return false;
         }
     }
@@ -73,14 +72,12 @@ bool MumbleLink::initialize() {
     DWORD mapAccess = (linkNameStr == "MumbleLink") ? FILE_MAP_READ : FILE_MAP_ALL_ACCESS;
     pMumbleData = static_cast<MumbleLinkData*>(MapViewOfFile(hMapFile, mapAccess, 0, 0, sizeof(MumbleLinkData)));
     if (pMumbleData == nullptr) {
-        LOG("MumbleLink: Failed to map view of file");
         CloseHandle(hMapFile);
         hMapFile = nullptr;
         return false;
     }
 
     initialized = true;
-    LOG("MumbleLink: Initialized successfully for '", linkNameStr, "'");
     return true;
 }
 
@@ -113,6 +110,9 @@ void MumbleLink::onUpdate() {
         lastTick = pMumbleData->uiTick;
         
         std::wstring newCharacterName;
+        unsigned currentMapId = 0;
+        bool newIsInWvW = false;
+        
         if (pMumbleData->identity[0] != L'\0') {
             try {
                 std::wstring identityWStr(pMumbleData->identity);
@@ -120,9 +120,25 @@ void MumbleLink::onUpdate() {
                 std::string identityStr = converter.to_bytes(identityWStr);
                 
                 auto identityJson = nlohmann::json::parse(identityStr);
+                
                 if (identityJson.contains("name") && identityJson["name"].is_string()) {
                     std::string characterNameStr = identityJson["name"];
                     newCharacterName = converter.from_bytes(characterNameStr);
+                }
+                
+                if (identityJson.contains("map_id") && identityJson["map_id"].is_number()) {
+                    currentMapId = identityJson["map_id"].get<unsigned>();
+                    
+                    std::set<unsigned> wvwMapIds = {
+                        38,   // Eternal Battlegrounds
+                        95, 96, 94,  // Borderlands (Red, Blue, Green)
+                        968,  // Edge of the Mists
+                        899,  // Obsidian Sanctum
+                        1315  // Armistice Bastion
+                    };
+                    
+                    newIsInWvW = wvwMapIds.find(currentMapId) != wvwMapIds.end();
+                    
                 }
             } catch (...) {
             }
@@ -130,12 +146,11 @@ void MumbleLink::onUpdate() {
         
         if (!newCharacterName.empty() && newCharacterName != cachedCharacterName) {
             cachedCharacterName = newCharacterName;
-            std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-            std::string nameStr = converter.to_bytes(newCharacterName);
-            LOG("MumbleLink: Character changed to: ", nameStr);
         } else if (newCharacterName.empty() && !cachedCharacterName.empty()) {
             cachedCharacterName.clear();
         }
+        
+        cachedIsInWvW = newIsInWvW;
     }
 }
 
@@ -149,6 +164,10 @@ bool MumbleLink::isValidData() const {
 
 bool MumbleLink::isInGame() const {
     return isValidData() && !cachedCharacterName.empty();
+}
+
+bool MumbleLink::isInWvW() const {
+    return isInGame() && cachedIsInWvW;
 }
 
 } // namespace GW2_SCT

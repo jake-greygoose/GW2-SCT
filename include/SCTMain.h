@@ -50,5 +50,9 @@ namespace GW2_SCT {
 
 		long currentScrollAreaEraseCallbackId = -1;
 		long currentScrollAreaPushBackCallbackId = -1;
+		
+		// Profile switching state tracking
+		std::string lastCharacterName;
+		bool lastWvwState = false;
 	};
 }

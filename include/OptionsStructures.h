@@ -42,9 +42,12 @@ namespace GW2_SCT {
 
 	class options_struct {
 	public:
-		std::string globalProfile = "default";
+		std::string pveDefaultProfile = "default";
+		std::string wvwDefaultProfile = "default";
 		shared_ptr_map_with_creation<std::string, profile_options_struct> profiles;
 		std::map<std::string, std::string> characterProfileMap;
+		std::map<std::string, std::string> characterPveProfileMap;
+		std::map<std::string, std::string> characterWvwProfileMap;
 	};
 	void to_json(nlohmann::json& j, const options_struct& p);
 	void from_json(const nlohmann::json& j, options_struct& p);

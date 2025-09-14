@@ -339,7 +339,13 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	if (!mumbleCharacterName.empty()) {
 		std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
 		std::string currentCharacterName = converter.to_bytes(mumbleCharacterName);
-		Profiles::loadForCharacter(currentCharacterName);
+		bool currentWvwState = MumbleLink::i().isInWvW();
+		
+		if (currentCharacterName != lastCharacterName || currentWvwState != lastWvwState) {
+			Profiles::loadForCharacter(currentCharacterName);
+			lastCharacterName = currentCharacterName;
+			lastWvwState = currentWvwState;
+		}
 	}
 
 	GW2_SCT::Texture::BeginPresentCycle();
@@ -368,7 +374,6 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	
 	Profiles::processPendingSwitch();
 
-	// Options
 	Options::paint(scrollAreas);
 	Options::paintScrollAreaOverlay(scrollAreas);
 	ExampleMessageOptions::paint();

@@ -158,16 +158,22 @@ namespace GW2_SCT {
 
     void to_json(nlohmann::json& j, const options_struct& p) {
         j = nlohmann::json{
-            {"globalProfile", p.globalProfile},
+            {"pveDefaultProfile", p.pveDefaultProfile},
+            {"wvwDefaultProfile", p.wvwDefaultProfile},
             {"profiles", p.profiles},
-            {"characterProfileMap", p.characterProfileMap}
+            {"characterProfileMap", p.characterProfileMap},
+            {"characterPveProfileMap", p.characterPveProfileMap},
+            {"characterWvwProfileMap", p.characterWvwProfileMap}
         };
     }
 
     void from_json(const nlohmann::json& j, options_struct& p) {
-        if (j.contains("globalProfile")) j.at("globalProfile").get_to(p.globalProfile);
+        if (j.contains("pveDefaultProfile")) j.at("pveDefaultProfile").get_to(p.pveDefaultProfile);
+        if (j.contains("wvwDefaultProfile")) j.at("wvwDefaultProfile").get_to(p.wvwDefaultProfile);
         if (j.contains("profiles")) j.at("profiles").get_to(p.profiles);
         if (j.contains("characterProfileMap")) j.at("characterProfileMap").get_to(p.characterProfileMap);
+        if (j.contains("characterPveProfileMap")) j.at("characterPveProfileMap").get_to(p.characterPveProfileMap);
+        if (j.contains("characterWvwProfileMap")) j.at("characterWvwProfileMap").get_to(p.characterWvwProfileMap);
     }
 
 } // namespace GW2_SCT
