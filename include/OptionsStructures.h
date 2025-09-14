@@ -125,14 +125,13 @@ namespace GW2_SCT {
 		float customScrollSpeed = -1.0f;
 		
 		float minLineSpacingPx = 12.0f;
-		float maxNudgeMsPerSecond = 0.0f;
 		float staticDisplayTimeMs = 3150.0f;
 		
-		float overflowMaxFactor = 1.7f;
-		float occupancyStart = 0.60f;
-		float occupancyEnd = 0.90f;
-		float overflowSmoothingTau = 0.25f;
+		// Queue speedup control
+		float queueSpeedupFactor = 0.5f; // How much to speed up (0.5 = up to 1.5x speed)
+		float queueSpeedupSmoothingTau = 0.25f; // Smoothing time constant in seconds (lower = snappier)
 		
+		// Angled animation settings
 		float angleDegrees = 15.0f;
 		float angleJitterDegrees = 5.0f;
 		int angledDirection = 0;

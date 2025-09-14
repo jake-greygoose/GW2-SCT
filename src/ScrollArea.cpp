@@ -10,7 +10,7 @@
 using namespace std::chrono;
 
 GW2_SCT::ScrollArea::ScrollArea(std::shared_ptr<scroll_area_options_struct> options) : options(options) {
-	paintedMessages = std::list<std::pair<MessagePrerender, time_point<system_clock>>>();
+	paintedMessages = std::list<std::pair<MessagePrerender, time_point<steady_clock>>>();
 }
 
 void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
@@ -96,15 +96,28 @@ void GW2_SCT::ScrollArea::paint() {
 	std::unique_lock<std::mutex> mlock(messageQueueMutex);
 	if (!options->enabled) { return; }
 	
-	const auto frameNow = std::chrono::system_clock::now();
+	const auto frameNow = std::chrono::steady_clock::now();
 	double dt = 0.0;
 	if (lastPaintTs.time_since_epoch().count() != 0) {
 		dt = std::chrono::duration<double>(frameNow - lastPaintTs).count();
 	}
 	lastPaintTs = frameNow;
 	
-	float speedFactor = prevSpeedFactor;
-	float scrollSpeedEff = getEffectiveScrollSpeed() * speedFactor;
+	int messagesInStack = std::max(1, Options::get()->messagesInStack);
+	float queuePressure = std::max(0.0f, (float)messageQueue.size() - (float)messagesInStack) / (float)messagesInStack;
+	queuePressure = std::clamp(queuePressure, 0.0f, 3.0f);
+	float targetSpeedMultiplier = 1.0f + queuePressure * options->queueSpeedupFactor;
+	
+	if (dt > 0.0) {
+		double alpha = 1.0 - std::exp(-dt / options->queueSpeedupSmoothingTau);
+		currentSpeedMultiplier += alpha * (targetSpeedMultiplier - currentSpeedMultiplier);
+	} else {
+		currentSpeedMultiplier = targetSpeedMultiplier;
+	}
+	
+	float scrollSpeedEff = getEffectiveScrollSpeed() * currentSpeedMultiplier;
+	const float spacingEps = 0.5f;
+	scrollPhasePx += scrollSpeedEff * (float)dt;
 
 	while (!messageQueue.empty()) {
 		MessagePrerender& m = messageQueue.front();
@@ -112,123 +125,59 @@ void GW2_SCT::ScrollArea::paint() {
 		if (m.options && m.message) {
 			auto messageData = m.message->getCopyOfFirstData();
 			std::string skillName = messageData && messageData->skillName ? std::string(messageData->skillName) : "";
-			
 			if (m.options->isThresholdExceeded(m.message, messageData ? messageData->skillId : 0, skillName, Options::get()->filterManager)) {
 				messageQueue.pop_front();
 				continue;
 			}
 		}
-		
+
 		if (paintedMessages.empty()) {
-			m.personalFactor = speedFactor;
 			paintedMessages.push_back(std::make_pair(std::move(m), frameNow));
+			paintedMessages.back().first.spawnPhasePx = scrollPhasePx;
 			messageQueue.pop_front();
-			
 			if (options->textCurve == TextCurve::STATIC) {
 				handleStaticPlacement(paintedMessages.back().first);
 			}
 			break;
 		}
-		else {
+
+		if (options->textCurve == TextCurve::STATIC) {
 			m.ensureExtents();
-			float spaceRequiredForNextMessage = m.messageHeight + options->minLineSpacingPx;
-			float msForSpaceToClear = spaceRequiredForNextMessage / scrollSpeedEff * 1000;
-			__int64 msSinceLastPaintedMessage = duration_cast<milliseconds>(frameNow - paintedMessages.back().second).count();
-			__int64 msUntilNextMessageCanBePainted = (__int64)msForSpaceToClear - msSinceLastPaintedMessage;
-			if (msUntilNextMessageCanBePainted > 0) {
-				bool highBacklog = messageQueue.size() > Options::get()->messagesInStack;
-				bool areaBusy = prevSpeedFactor > 1.0f;
-				if (highBacklog || areaBusy) {
-					m.personalFactor = speedFactor;
-					paintedMessages.push_back(std::make_pair(std::move(m), frameNow));
-					messageQueue.pop_front();
-					
-					if (options->textCurve == TextCurve::STATIC) {
-						handleStaticPlacement(paintedMessages.back().first);
-					}
-				}
-				break;
-			}
-			else {
-				m.personalFactor = speedFactor;
-				paintedMessages.push_back(std::make_pair(std::move(m), frameNow));
-				messageQueue.pop_front();
-				
-				if (options->textCurve == TextCurve::STATIC) {
-					handleStaticPlacement(paintedMessages.back().first);
-				}
-				
-				break;
-			}
+			paintedMessages.push_back(std::make_pair(std::move(m), frameNow));
+			paintedMessages.back().first.spawnPhasePx = scrollPhasePx;
+			messageQueue.pop_front();
+			handleStaticPlacement(paintedMessages.back().first);
+			break;
 		}
-	}
 
-	if (options->textCurve != TextCurve::STATIC) {
-		applyLiveSpacing(dt, frameNow);
-		applyHardSpacing(dt, frameNow);
-	}
+		m.ensureExtents();
+		MessagePrerender& prev = paintedMessages.back().first;
+		prev.ensureExtents();
 
-	if (dt > 0.0 && !paintedMessages.empty()) {
-		float areaOriginY = windowHeight * 0.5f + options->offsetY;
-		float areaTop = areaOriginY;
-		float areaHeight = options->height;
-		
-		float fillTop = std::numeric_limits<float>::max();
-		float fillBot = std::numeric_limits<float>::lowest();
-		
-		float baseScrollSpeed = getEffectiveScrollSpeed();
-		
-		for (auto& pair : paintedMessages) {
-			if (std::isnan(pair.first.staticY)) {
-				float baseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - pair.second).count();
-				float effectiveElapsedMs = std::max(0.0f, baseTime - pair.first.liveOffsetMs);
-				
-				pair.first.ensureExtents(); // MUST be first
-				float messageY, messageTop, messageBot;
-				if (options->scrollDirection == ScrollDirection::DOWN) {
-					messageY = areaOriginY + effectiveElapsedMs * 0.001f * (baseScrollSpeed * pair.first.personalFactor);
-					messageTop = messageY + pair.first.messageTopInset;
-					messageBot = messageTop + pair.first.messageHeight;
-				} else { // UP
-					float animatedHeight = effectiveElapsedMs * 0.001f * (baseScrollSpeed * pair.first.personalFactor);
-					messageY = areaOriginY + areaHeight - animatedHeight - pair.first.messageHeight;
-					messageTop = messageY + pair.first.messageTopInset;
-					messageBot = messageTop + pair.first.messageHeight;
+		float spaceToClear = prev.messageHeight + options->minLineSpacingPx + spacingEps;
+		float distPrev = scrollPhasePx - prev.spawnPhasePx;
+		if (distPrev >= spaceToClear) {
+			paintedMessages.push_back(std::make_pair(std::move(m), frameNow));
+			paintedMessages.back().first.spawnPhasePx = scrollPhasePx;
+			messageQueue.pop_front();
+			if (paintedMessages.size() >= 2) {
+				auto newIt = std::prev(paintedMessages.end());
+				auto prevIt = std::prev(newIt);
+				MessagePrerender& newMsg = newIt->first;
+				MessagePrerender& prevMsg = prevIt->first;
+				float distPrev2 = scrollPhasePx - prevMsg.spawnPhasePx;
+				float actualGap = 0.0f;
+				float prevTop2 = distPrev2 + prevMsg.messageTopInset + prevMsg.spawnYOffsetPx;
+				float newBottom2 = newMsg.messageTopInset + newMsg.messageHeight + newMsg.spawnYOffsetPx;
+				actualGap = prevTop2 - newBottom2;
+				if (actualGap < options->minLineSpacingPx + spacingEps) {
+					float missing = (options->minLineSpacingPx + spacingEps) - actualGap;
+					newMsg.spawnYOffsetPx -= missing;
 				}
-				
-				fillTop = std::min(fillTop, messageTop);
-				fillBot = std::max(fillBot, messageBot);
 			}
+		} else {
+			break;
 		}
-		
-		float occupancy = 0.0f;
-		if (fillTop != std::numeric_limits<float>::max()) {
-			if (options->scrollDirection == ScrollDirection::DOWN) {
-				occupancy = std::clamp((fillBot - areaTop) / areaHeight, 0.0f, 1.0f);
-			} else { // UP
-				float areaBottom = areaTop + areaHeight;
-				occupancy = std::clamp((areaBottom - fillTop) / areaHeight, 0.0f, 1.0f);
-			}
-		}
-		
-		double alpha = 1.0 - std::exp(-dt / options->overflowSmoothingTau);
-		occupancyEma += alpha * (occupancy - occupancyEma);
-		
-		float x = 0.0f;
-		if (occupancyEma > options->occupancyStart) {
-			x = (float(occupancyEma) - options->occupancyStart) / std::max(0.001f, options->occupancyEnd - options->occupancyStart);
-			x = std::clamp(x, 0.0f, 1.0f);
-			x = x * x * (3.0f - 2.0f * x);
-		}
-		float desiredFactor = 1.0f + x * (options->overflowMaxFactor - 1.0f);
-		
-		float maxDeltaPerSec = 1.0f;
-		float maxStep = maxDeltaPerSec * (float)dt;
-		float nextSpeedFactor = std::clamp(desiredFactor, prevSpeedFactor - maxStep, prevSpeedFactor + maxStep);
-		prevSpeedFactor = nextSpeedFactor;
-	} else {
-		prevSpeedFactor = 1.0f;
-		occupancyEma = 0.0;
 	}
 
 	float areaOriginY = windowHeight * 0.5f + options->offsetY;
@@ -238,49 +187,10 @@ void GW2_SCT::ScrollArea::paint() {
 	
 	float baseScrollSpeed = getEffectiveScrollSpeed();
 	
-	for (auto& pair : paintedMessages) {
-		if (!std::isnan(pair.first.staticY)) continue;
-		
-		float target = prevSpeedFactor;
-		float accelUpPerSec = 1.0f;  
-		float decelDownPerSec = 0.8f;
-		
-		pair.first.ensureExtents();
-		
-		float baseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - pair.second).count();
-		float effectiveElapsedMs = std::max(0.0f, baseTime - pair.first.liveOffsetMs);
-		
-		float msgTop, msgBottom;
-		if (options->scrollDirection == ScrollDirection::DOWN) {
-			float messageY = areaOriginY + effectiveElapsedMs * 0.001f * baseScrollSpeed * pair.first.personalFactor;
-			msgTop = messageY + pair.first.messageTopInset;
-			msgBottom = msgTop + pair.first.messageHeight;
-			
-			float distToExitPx = areaBottom - msgBottom;
-			if (distToExitPx < 0.12f * areaHeight && target < pair.first.personalFactor) {
-				target = pair.first.personalFactor;
-			}
-		} else { // UP
-			float animatedHeight = effectiveElapsedMs * 0.001f * baseScrollSpeed * pair.first.personalFactor;
-			float messageY = areaOriginY + areaHeight - animatedHeight - pair.first.messageHeight;
-			msgTop = messageY + pair.first.messageTopInset;
-			msgBottom = msgTop + pair.first.messageHeight;
-			
-			float distToExitPx = msgTop - areaTop;
-			if (distToExitPx < 0.12f * areaHeight && target < pair.first.personalFactor) {
-				target = pair.first.personalFactor;
-			}
-		}
-		
-		float delta = target - pair.first.personalFactor;
-		float limit = (delta > 0 ? accelUpPerSec : decelDownPerSec) * (float)dt;
-		pair.first.personalFactor += std::clamp(delta, -limit, limit);
-	}
-
 	auto it = paintedMessages.begin();
 	while (it != paintedMessages.end()) {
 		__int64 t = duration_cast<milliseconds>(frameNow - it->second).count();
-		if (paintMessage(it->first, t)) {
+		if (paintMessage(it->first, t, currentSpeedMultiplier)) {
 			it++;
 		}
 		else {
@@ -289,7 +199,7 @@ void GW2_SCT::ScrollArea::paint() {
 	}
 }
 
-bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
+bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time, float globalSpeedMultiplier) {
 	if (m.forceExpire) {
 		return false;
 	}
@@ -306,9 +216,8 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 			alpha = 1.f - (percentage - 1.f + fadeLength) / fadeLength;
 		}
 	} else {
-		float effectiveElapsedMs = std::max(0.0f, (float)time - m.liveOffsetMs);
-		float baseScrollSpeed = getEffectiveScrollSpeed();
-		float animatedHeight = effectiveElapsedMs * 0.001f * (baseScrollSpeed * m.personalFactor);
+		// Use globally integrated phase for consistent spacing across speed changes
+		float animatedHeight = scrollPhasePx - m.spawnPhasePx;
 		percentage = animatedHeight / options->height;
 		
 		if (percentage > 1.f) return false;
@@ -338,23 +247,20 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 			pos.y += m.staticY;
 		}
 	} else {
-		float effectiveElapsedMs = std::max(0.0f, (float)time - m.liveOffsetMs);
-		float baseScrollSpeed = getEffectiveScrollSpeed();
-		float animatedHeight = effectiveElapsedMs * 0.001f * (baseScrollSpeed * m.personalFactor);
-		
+		float animatedHeight = scrollPhasePx - m.spawnPhasePx;
 		if (options->scrollDirection == ScrollDirection::DOWN) {
-			pos.y += animatedHeight;
+			pos.y += animatedHeight + m.spawnYOffsetPx;
 		}
 		else { // UP
-			pos.y += options->height - animatedHeight - messageHeight;
+			pos.y += options->height - animatedHeight - messageHeight + m.spawnYOffsetPx;
 		}
 	}
 	
 	float yDistanceForAngled = 0.0f;
 	if (options->textCurve != TextCurve::STATIC) {
-		float effectiveElapsedMs = std::max(0.0f, (float)time - m.liveOffsetMs);
-		float baseScrollSpeed = getEffectiveScrollSpeed();
-		yDistanceForAngled = effectiveElapsedMs * 0.001f * (baseScrollSpeed * m.personalFactor);
+		float animatedHeight = scrollPhasePx - m.spawnPhasePx;
+		yDistanceForAngled = animatedHeight;
+		// Keep angled horizontal offset dependent only on travel distance
 	}
 
 	switch (options->textCurve) {
@@ -407,221 +313,45 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time) {
 	return true;
 }
 
-void GW2_SCT::ScrollArea::applyLiveSpacing(double dt, std::chrono::time_point<std::chrono::system_clock> frameNow) {
-	if (options->textCurve == TextCurve::STATIC) return;
-	if (options->minLineSpacingPx <= 0.0f) return;
-	if (paintedMessages.size() < 2) return;
-	if (options->maxNudgeMsPerSecond <= 0.0f) return;
-	
-	if (getEffectiveScrollSpeed() <= 0.0f) return;
-	
-	std::vector<std::pair<MessagePrerender*, std::chrono::time_point<std::chrono::system_clock>*>> messages;
-	messages.reserve(paintedMessages.size());
-	for (auto& pair : paintedMessages) {
-		messages.push_back({&pair.first, &pair.second});
-	}
-	
-	float baseScrollSpeed = getEffectiveScrollSpeed();
-	float travelMsBase = options->height / baseScrollSpeed * 1000.0f;
-	
-	for (int pass = 0; pass < 4; pass++) {
-		bool anyAdjustment = false;
-		
-		for (size_t i = 0; i < messages.size() - 1; i++) {
-			auto& older = *messages[i].first;
-			auto& newer = *messages[i + 1].first;
-			
-			if (std::isnan(older.staticY) == false || std::isnan(newer.staticY) == false) {
-				continue;
-			}
-			
-			float olderBaseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - *messages[i].second).count();
-			float newerBaseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - *messages[i + 1].second).count();
-			
-			float olderElapsed = std::max(0.0f, olderBaseTime - older.liveOffsetMs);
-			float newerElapsed = std::max(0.0f, newerBaseTime - newer.liveOffsetMs);
-			
-			older.ensureExtents();
-			newer.ensureExtents();
-			
-			float personalOlder = baseScrollSpeed * older.personalFactor;
-			float personalNewer = baseScrollSpeed * newer.personalFactor;
-			float olderY, newerY;
-			if (options->scrollDirection == ScrollDirection::DOWN) {
-				olderY = olderElapsed * 0.001f * personalOlder;
-				newerY = newerElapsed * 0.001f * personalNewer;
-				
-				float olderTop = olderY + older.messageTopInset;
-				float newerBottom = newerY + newer.messageTopInset + newer.messageHeight;
-				float gap = olderTop - newerBottom;
-				
-				if (gap < (options->minLineSpacingPx - 1.0f)) {
-					float needPx = (options->minLineSpacingPx - gap);
-					float deltaMs = (needPx / personalOlder) * 1000.0f;
-					float appliedMs = std::min(deltaMs, options->maxNudgeMsPerSecond * (float)dt);
-
-					older.liveOffsetMs -= appliedMs;
-					anyAdjustment = true;
-
-					if (older.liveOffsetMs < -travelMsBase) older.liveOffsetMs = -travelMsBase;
-					if (older.liveOffsetMs > travelMsBase * 0.5f) older.liveOffsetMs = travelMsBase * 0.5f;
-				}
-			} else { // UP direction
-				olderY = options->height - olderElapsed * 0.001f * personalOlder - older.messageHeight;
-				newerY = options->height - newerElapsed * 0.001f * personalNewer - newer.messageHeight;
-				
-				float olderBottom = olderY + older.messageTopInset + older.messageHeight;
-				float newerTop = newerY + newer.messageTopInset;
-				float gap = newerTop - olderBottom;
-				
-				if (gap < (options->minLineSpacingPx - 1.0f)) {
-					float needPx = (options->minLineSpacingPx - gap);
-					float deltaMs = (needPx / personalOlder) * 1000.0f;
-					float appliedMs = std::min(deltaMs, options->maxNudgeMsPerSecond * (float)dt);
-
-					older.liveOffsetMs -= appliedMs;
-					anyAdjustment = true;
-
-					if (older.liveOffsetMs < -travelMsBase) older.liveOffsetMs = -travelMsBase;
-					if (older.liveOffsetMs > travelMsBase * 0.5f) older.liveOffsetMs = travelMsBase * 0.5f;
-				}
-			}
-		}
-		
-		if (!anyAdjustment) {
-			break;
-		}
-	}
-}
-
-void GW2_SCT::ScrollArea::applyHardSpacing(double dt, std::chrono::time_point<std::chrono::system_clock> frameNow) {
-	if (options->textCurve == TextCurve::STATIC) return;
+void GW2_SCT::ScrollArea::applySimpleSpacing(float globalSpeedMultiplier, double dt, std::chrono::time_point<std::chrono::steady_clock> frameNow) {
 	if (options->minLineSpacingPx <= 0.0f) return;
 	if (paintedMessages.size() < 2) return;
 	
-	if (getEffectiveScrollSpeed() <= 0.0f) return;
+	float baseScrollSpeed = getEffectiveScrollSpeed() * globalSpeedMultiplier;
+	if (baseScrollSpeed <= 0.0f) return;
 	
-	std::vector<std::pair<MessagePrerender*, std::chrono::time_point<std::chrono::system_clock>*>> movingMessages;
-	movingMessages.reserve(paintedMessages.size());
-	for (auto& pair : paintedMessages) {
-		if (std::isnan(pair.first.staticY)) {
-			movingMessages.push_back({&pair.first, &pair.second});
-		}
-	}
-	
-	if (movingMessages.size() < 2) return;
-	
-	for (auto& msgPair : movingMessages) {
-		msgPair.first->ensureExtents();
-	}
-	
-	float baseScrollSpeed = getEffectiveScrollSpeed();
-	float travelMsBase = options->height / baseScrollSpeed * 1000.0f;
-	
-	float areaOriginY = windowHeight * 0.5f + options->offsetY;
-	
-	if (options->scrollDirection == ScrollDirection::DOWN) {
-
-		std::vector<std::pair<MessagePrerender*, float>> messageBasePositions;
-		messageBasePositions.reserve(movingMessages.size());
-		for (auto& msgPair : movingMessages) {
-			float baseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - *msgPair.second).count();
-			float elapsedMs = std::max(0.0f, baseTime - msgPair.first->liveOffsetMs);
-			float baseY = areaOriginY + elapsedMs * 0.001f * (baseScrollSpeed * msgPair.first->personalFactor);
-			messageBasePositions.push_back({msgPair.first, baseY});
+	auto it = paintedMessages.begin();
+	while (it != paintedMessages.end()) {
+		auto nextIt = std::next(it);
+		if (nextIt == paintedMessages.end()) break;
+		
+		it->first.ensureExtents();
+		nextIt->first.ensureExtents();
+		
+		float baseTime1 = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - it->second).count();
+		float baseTime2 = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - nextIt->second).count();
+		
+		float elapsed1 = std::max(0.0f, baseTime1 - it->first.liveOffsetMs);
+		float elapsed2 = std::max(0.0f, baseTime2 - nextIt->first.liveOffsetMs);
+		
+		float pos1, pos2, gap;
+		if (options->scrollDirection == ScrollDirection::DOWN) {
+			pos1 = elapsed1 * 0.001f * baseScrollSpeed + it->first.messageTopInset + it->first.messageHeight;
+			pos2 = elapsed2 * 0.001f * baseScrollSpeed + nextIt->first.messageTopInset;
+			gap = pos2 - pos1;
+		} else {
+			pos1 = elapsed1 * 0.001f * baseScrollSpeed + it->first.messageTopInset;
+			pos2 = elapsed2 * 0.001f * baseScrollSpeed + nextIt->first.messageTopInset + nextIt->first.messageHeight;
+			gap = pos1 - pos2;
 		}
 		
-		std::sort(messageBasePositions.begin(), messageBasePositions.end(), 
-			[](const std::pair<MessagePrerender*, float>& a, const std::pair<MessagePrerender*, float>& b) {
-				float aTop = a.second + a.first->messageTopInset;
-				float bTop = b.second + b.first->messageTopInset;
-				return aTop < bTop;
-			});
-		
-		float cursorTop = areaOriginY;
-		
-		for (auto& msgPair : messageBasePositions) {
-			MessagePrerender* m = msgPair.first;
-			float baseY = msgPair.second;
-			
-			float baseTop = baseY + m->messageTopInset;
-			float baseBottom = baseTop + m->messageHeight;
-			
-			if (baseTop < cursorTop) {
-				float placedBottom = cursorTop + m->messageHeight;
-				bool wouldCrossExit = (placedBottom >= areaOriginY + options->height - 0.5f);
-				
-				if (wouldCrossExit) {
-					m->forceExpire = true;
-					continue;
-				}
-				
-				float shiftPx = cursorTop - baseTop;
-				if (shiftPx > 0.5f) {
-					float personalSpeed = baseScrollSpeed * m->personalFactor;
-					float advanceMs = (shiftPx / personalSpeed) * 1000.0f;
-					m->liveOffsetMs -= advanceMs;
-				}
-				
-				m->liveOffsetMs = std::clamp(m->liveOffsetMs, -travelMsBase, 0.5f * travelMsBase);
-				
-				cursorTop = cursorTop + m->messageHeight + options->minLineSpacingPx;
-			} else {
-				cursorTop = baseBottom + options->minLineSpacingPx;
-			}
+		if (gap < options->minLineSpacingPx) {
+			float neededGap = options->minLineSpacingPx - gap;
+			float offsetMs = (neededGap / baseScrollSpeed) * 1000.0f;
+			nextIt->first.liveOffsetMs += std::min(offsetMs, 100.0f);
 		}
 		
-	} else { // UP direction
-
-		std::vector<std::pair<MessagePrerender*, float>> messageBasePositions;
-		messageBasePositions.reserve(movingMessages.size());
-		for (auto& msgPair : movingMessages) {
-			float baseTime = (float)std::chrono::duration_cast<std::chrono::milliseconds>(frameNow - *msgPair.second).count();
-			float elapsedMs = std::max(0.0f, baseTime - msgPair.first->liveOffsetMs);
-			float animatedHeight = elapsedMs * 0.001f * (baseScrollSpeed * msgPair.first->personalFactor);
-			float baseY = areaOriginY + options->height - animatedHeight - msgPair.first->messageHeight;
-			messageBasePositions.push_back({msgPair.first, baseY});
-		}
-		
-		std::sort(messageBasePositions.begin(), messageBasePositions.end(), 
-			[](const std::pair<MessagePrerender*, float>& a, const std::pair<MessagePrerender*, float>& b) {
-				float aBottom = a.second + a.first->messageTopInset + a.first->messageHeight;
-				float bBottom = b.second + b.first->messageTopInset + b.first->messageHeight;
-				return aBottom > bBottom;
-			});
-		
-		float cursorBottom = areaOriginY + options->height;
-		
-		for (auto& msgPair : messageBasePositions) {
-			MessagePrerender* m = msgPair.first;
-			float baseY = msgPair.second;
-			
-			float baseTop = baseY + m->messageTopInset;
-			float baseBottom = baseTop + m->messageHeight;
-			
-			if (baseBottom > cursorBottom) {
-				float placedTop = cursorBottom - m->messageHeight;
-				bool wouldCrossExit = (placedTop <= areaOriginY + 0.5f);
-				
-				if (wouldCrossExit) {
-					m->forceExpire = true;
-					continue;
-				}
-				
-				float shiftPx = baseBottom - cursorBottom;
-				if (shiftPx > 0.5f) {
-					float personalSpeed = baseScrollSpeed * m->personalFactor;
-					float advanceMs = (shiftPx / personalSpeed) * 1000.0f;
-					m->liveOffsetMs -= advanceMs;
-				}
-				
-				m->liveOffsetMs = std::clamp(m->liveOffsetMs, -travelMsBase, 0.5f * travelMsBase);
-
-				cursorBottom = cursorBottom - m->messageHeight - options->minLineSpacingPx;
-			} else {
-				cursorBottom = baseTop - options->minLineSpacingPx;
-			}
-		}
+		++it;
 	}
 }
 
@@ -714,6 +444,8 @@ GW2_SCT::ScrollArea::MessagePrerender::MessagePrerender(const MessagePrerender& 
 	
 	angledSign = copy.angledSign;
 	angledAngleRad = copy.angledAngleRad;
+	spawnYOffsetPx = copy.spawnYOffsetPx;
+	spawnPhasePx = copy.spawnPhasePx;
 	
 	templateObserverId = options->outputTemplate.onAssign([this](const std::string& oldVal, const std::string& newVal) { this->update(); });
 	colorObserverId = options->color.onAssign([this](const std::string& oldVal, const std::string& newVal) { this->update(); });

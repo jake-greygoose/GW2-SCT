@@ -288,12 +288,9 @@ namespace GW2_SCT {
         j["showCombinedHitCount"] = p.showCombinedHitCount;
         j["customScrollSpeed"] = p.customScrollSpeed;
         j["minLineSpacingPx"] = p.minLineSpacingPx;
-        j["maxNudgeMsPerSecond"] = p.maxNudgeMsPerSecond;
         j["staticDisplayTimeMs"] = p.staticDisplayTimeMs;
-        j["overflowMaxFactor"] = p.overflowMaxFactor;
-        j["occupancyStart"] = p.occupancyStart;
-        j["occupancyEnd"] = p.occupancyEnd;
-        j["overflowSmoothingTau"] = p.overflowSmoothingTau;
+        j["queueSpeedupFactor"] = p.queueSpeedupFactor;
+        j["queueSpeedupSmoothingTau"] = p.queueSpeedupSmoothingTau;
         j["angleDegrees"] = p.angleDegrees;
         j["angleJitterDegrees"] = p.angleJitterDegrees;
         j["angledDirection"] = p.angledDirection;
@@ -318,14 +315,9 @@ namespace GW2_SCT {
         if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
         if (j.contains("customScrollSpeed")) j.at("customScrollSpeed").get_to(p.customScrollSpeed);
         if (j.contains("minLineSpacingPx")) j.at("minLineSpacingPx").get_to(p.minLineSpacingPx);
-        if (j.contains("maxNudgeMsPerSecond")) {
-            j.at("maxNudgeMsPerSecond").get_to(p.maxNudgeMsPerSecond);
-        }        
         if (j.contains("staticDisplayTimeMs")) j.at("staticDisplayTimeMs").get_to(p.staticDisplayTimeMs);
-        if (j.contains("overflowMaxFactor")) j.at("overflowMaxFactor").get_to(p.overflowMaxFactor);
-        if (j.contains("occupancyStart")) j.at("occupancyStart").get_to(p.occupancyStart);
-        if (j.contains("occupancyEnd")) j.at("occupancyEnd").get_to(p.occupancyEnd);
-        if (j.contains("overflowSmoothingTau")) j.at("overflowSmoothingTau").get_to(p.overflowSmoothingTau);
+        if (j.contains("queueSpeedupFactor")) j.at("queueSpeedupFactor").get_to(p.queueSpeedupFactor);
+        if (j.contains("queueSpeedupSmoothingTau")) j.at("queueSpeedupSmoothingTau").get_to(p.queueSpeedupSmoothingTau);
         if (j.contains("angleDegrees")) j.at("angleDegrees").get_to(p.angleDegrees);
         if (j.contains("angleJitterDegrees")) j.at("angleJitterDegrees").get_to(p.angleJitterDegrees);
         if (j.contains("angledDirection")) j.at("angledDirection").get_to(p.angledDirection);

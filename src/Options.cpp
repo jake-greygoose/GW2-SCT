@@ -782,15 +782,29 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 				
 				{
 					ImGui::SetNextItemWidth(120);
-					if (ImGui::SliderFloat("Spacing nudge rate (ms/s)", &scrollAreaOptions->maxNudgeMsPerSecond, 0.0f, 400.0f, "%.0f")) {
+					if (ImGui::SliderFloat("Queue Speedup Factor", &scrollAreaOptions->queueSpeedupFactor, 0.0f, 2.0f, "%.2f")) {
 						requestSave();
 					}
 					if (ImGui::IsItemHovered()) {
-						ImGui::SetTooltip("Upper limit on how much timing we adjust per second to keep lines apart. Lower = smoother; higher = snappier.");
+						ImGui::SetTooltip("How much to speed up when messages queue. 0.5 = up to 1.5x speed, 1.0 = up to 2.0x speed.");
 					}
 					ImGui::SameLine();
 					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-					ImGui::Text("(%.0fms/s)", scrollAreaOptions->maxNudgeMsPerSecond);
+					ImGui::Text("(up to %.1fx speed)", 1.0f + scrollAreaOptions->queueSpeedupFactor);
+					ImGui::PopStyleColor();
+				}
+				
+				{
+					ImGui::SetNextItemWidth(120);
+					if (ImGui::SliderFloat("Speedup Smoothing", &scrollAreaOptions->queueSpeedupSmoothingTau, 0.05f, 1.0f, "%.2fs")) {
+						requestSave();
+					}
+					if (ImGui::IsItemHovered()) {
+						ImGui::SetTooltip("How quickly speed changes. Lower = more responsive, Higher = smoother.");
+					}
+					ImGui::SameLine();
+					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+					ImGui::Text("(%.2fs)", scrollAreaOptions->queueSpeedupSmoothingTau);
 					ImGui::PopStyleColor();
 				}
 				
@@ -827,23 +841,6 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 						scrollAreaOptions->angledDirection = (directionIndex == 0) ? 0 : (directionIndex == 2 ? 1 : -1);
 						requestSave();
 					}
-				}
-				
-				ImGui::Separator();
-				ImGui::Text("Overflow Speed");
-				
-				{
-					ImGui::SetNextItemWidth(120);
-					if (ImGui::SliderFloat("Overflow speed (max ×)", &scrollAreaOptions->overflowMaxFactor, 1.0f, 3.0f, "%.1fx")) {
-						requestSave();
-					}
-					if (ImGui::IsItemHovered()) {
-						ImGui::SetTooltip("When there's a queue, temporarily scroll faster (up to this multiple) to drain it. Returns to normal as soon as the queue clears.");
-					}
-					ImGui::SameLine();
-					ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-					ImGui::Text("(%.1fx)", scrollAreaOptions->overflowMaxFactor);
-					ImGui::PopStyleColor();
 				}
 			}
 
