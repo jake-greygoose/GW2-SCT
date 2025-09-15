@@ -460,7 +460,6 @@ void GW2_SCT::Options::paintGeneral() {
     }
 
     {
-        ImGui::SetNextItemWidth(120);
         if (ImGui::SliderFloat(langString(LanguageCategory::Option_UI, LanguageKey::General_Global_Opacity), &currentProfile->globalOpacity, 0.0f, 1.0f, "%.2f")) {
             requestSave();
         }
