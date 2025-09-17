@@ -117,6 +117,7 @@
   F(Custom_Font_Size,)\
   F(Skill_Filter_Type_ID,)\
   F(Skill_Filter_Type_Name,)\
+  F(Skill_Filter_Type_ID_Range,)\
   F(Font_Master,)\
   F(Font_Default,)\
   F(Text_Align_Left,)\
@@ -234,6 +235,29 @@
   F(Parameter_Description_d,)\
   F(Default_Value,)\
   F(Filter_By,)\
+  /* Skill Filter UI */ \
+  F(Filter_Sets_List_Title,)\
+  F(New_Filter_Set_Add,)\
+  F(Filter_Set_Label,)\
+  F(Rename_Filter_Set_Title,)\
+  F(Rename_Filter_Set_Prompt,)\
+  F(Rename_Filter_Set_Name_Exists,)\
+  F(Delete_Filter_Set_Content,)\
+  F(Filter_Set_Delete_Button_Text,)\
+  F(Filter_Set_Rename_Button_Text,)\
+  F(Description_Label,)\
+  F(Default_Action_Label,)\
+  F(Default_Action_Allow,)\
+  F(Default_Action_Block,)\
+  F(Filters_Title,)\
+  F(Delete_Filter_Tooltip,)\
+  F(Range_To_Word,)\
+  F(No_Filters_Defined_Info,)\
+  F(Add_Filter_Button_Text,)\
+  F(Used_By_Label,)\
+  F(Not_Assigned_Info,)\
+  F(Select_Filter_Set_Hint_Line1,)\
+  F(Select_Filter_Set_Hint_Line2,)\
   F(Profile_Description,)\
   F(Master_Profile,)\
   F(Character_Specific_Profile_Heading,)\
