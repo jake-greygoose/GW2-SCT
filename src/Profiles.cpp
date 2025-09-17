@@ -153,7 +153,6 @@ void GW2_SCT::Profiles::paintUI() {
 	bool doesCharacterMappingExist = currentCharacterName != "" && options.characterProfileMap.find(currentCharacterName) != options.characterProfileMap.end();
 
 	ImGui::Spacing();
-	ImGui::Spacing();
 
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.2f, 0.4f, 0.2f, 0.3f));
 	if (ImGui::BeginChild("ActiveProfileStatus", ImVec2(0, 120), true)) {
@@ -209,9 +208,7 @@ void GW2_SCT::Profiles::paintUI() {
 	ImGui::PopStyleColor();
 	
 	ImGui::Spacing();
-	ImGui::Spacing();
 	ImGui::Separator();
-	ImGui::Spacing();
 	ImGui::Spacing();
 	
 
@@ -293,7 +290,6 @@ void GW2_SCT::Profiles::paintUI() {
 	
 	ImGui::Unindent();
 	
-	ImGui::Spacing();
 	ImGui::Spacing();
 	
 	if (currentCharacterName != "") {
@@ -399,7 +395,6 @@ void GW2_SCT::Profiles::paintUI() {
 	
 	ImGui::Separator();
 	ImGui::Spacing();
-	ImGui::Spacing();
 	
 	ImGui::Text("%s", Language::get(LanguageCategory::Profile_Option_UI, LanguageKey::Profile_Actions_Title));
 	ImGui::Spacing();
@@ -459,7 +454,6 @@ void GW2_SCT::Profiles::paintUI() {
 		ImGui::EndDisabled();
 	}
 	
-	ImGui::Spacing();
 	ImGui::Spacing();
 	
 	ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Manage_Profiles_Title));
