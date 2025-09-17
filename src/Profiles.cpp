@@ -432,6 +432,22 @@ void GW2_SCT::Profiles::paintUI() {
 					characterProfileMapping.second = nameCopy;
 				}
 			}
+			for (auto& characterPveProfileMapping : options.characterPveProfileMap) {
+				if (characterPveProfileMapping.second == currentProfileName) {
+					characterPveProfileMapping.second = nameCopy;
+				}
+			}
+			for (auto& characterWvwProfileMapping : options.characterWvwProfileMap) {
+				if (characterWvwProfileMapping.second == currentProfileName) {
+					characterWvwProfileMapping.second = nameCopy;
+				}
+			}
+			if (options.pveDefaultProfile == currentProfileName) {
+				options.pveDefaultProfile = nameCopy;
+			}
+			if (options.wvwDefaultProfile == currentProfileName) {
+				options.wvwDefaultProfile = nameCopy;
+			}
 			currentProfileName = nameCopy;
 			Options::requestSave();
 		}
@@ -461,6 +477,22 @@ void GW2_SCT::Profiles::paintUI() {
 			if (characterProfileMapping.second == currentProfileName) {
 				characterProfileMapping.second = copyName;
 			}
+		}
+		for (auto& characterPveProfileMapping : options.characterPveProfileMap) {
+			if (characterPveProfileMapping.second == currentProfileName) {
+				characterPveProfileMapping.second = copyName;
+			}
+		}
+		for (auto& characterWvwProfileMapping : options.characterWvwProfileMap) {
+			if (characterWvwProfileMapping.second == currentProfileName) {
+				characterWvwProfileMapping.second = copyName;
+			}
+		}
+		if (options.pveDefaultProfile == currentProfileName) {
+			options.pveDefaultProfile = copyName;
+		}
+		if (options.wvwDefaultProfile == currentProfileName) {
+			options.wvwDefaultProfile = copyName;
 		}
 		currentProfileName = copyName;
 		requestSwitch(options.profiles[currentProfileName]);
@@ -519,6 +551,16 @@ void GW2_SCT::Profiles::paintUI() {
 			for (auto& characterProfileMapping : options.characterProfileMap) {
 				if (characterProfileMapping.second == currentProfileName) {
 					characterProfileMapping.second = defaultProfileName;
+				}
+			}
+			for (auto& characterPveProfileMapping : options.characterPveProfileMap) {
+				if (characterPveProfileMapping.second == currentProfileName) {
+					characterPveProfileMapping.second = defaultProfileName;
+				}
+			}
+			for (auto& characterWvwProfileMapping : options.characterWvwProfileMap) {
+				if (characterWvwProfileMapping.second == currentProfileName) {
+					characterWvwProfileMapping.second = defaultProfileName;
 				}
 			}
 			options.profiles.erase(currentProfileName);
