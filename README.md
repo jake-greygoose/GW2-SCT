@@ -1,7 +1,7 @@
 # Guild Wars 2 - Scrolling Combat Text (GW2SCT)
 
 This addon overlays local combat data in highly configurable scroll areas.
-It can be used as a replacement for or in addition to the in game combat text.
+It can be used as a replacement for, or in addition to, the in game combat text.
 Inspired by the WoW addon Mik's Scrolling Battle Text.
 
 ### This is an opinionated fork
