@@ -1,113 +1,65 @@
 # Guild Wars 2 - Scrolling Combat Text (GW2SCT)
 
-This is an addon for arcdps by deltaconnected (https://www.deltaconnected.com/arcdps/) and adds a highly customizable floating and scrolling combat text beside the users character. Incoming damage is displayed on the left side, outgoing damage is displayed on the right side.
+This addon overlays local combat data in highly configurable scroll areas.
+It can be used as a replacement for or in addition to the in game combat text.
+Inspired by the WoW addon Mik's Scrolling Battle Text.
 
-### Prerequisites
+### This is an opinionated fork
 
-GW2SCT requires ArcDPS to work. You can install arcdps by following the instructions in this site:
-https://www.deltaconnected.com/arcdps/
+- Configuration files from previous versions are not supported and will be overwritten
+- Some features like messages teleporting down on queue are removed
+- I've not made any attempt to profile performance
+- A spiritual continuation in absence of the original author
+
+My primary motivation for resurrecting this addon is to level the playing field in WvW, as I believe this addon provides an advantage there. But it requires a specific configuration, which isn’t possible to make in the addon, and largely results in people sharing a config file on discord. Additionally the original addon doesn’t work at all on certain hardware (AMD graphic cards). 
+
+An example of this configuration can be seen here: https://youtu.be/2O03Fe7lbnk?t=136
+
+**So what's fixed?**
+
+- AMD crash / Deferred texture creation
+- Profile switching
+- Config file getting overwritten
+
+**What improvements have been made?**
+
+- Filters can be configured as Allow or Block lists for each message receiver
+- Global and Scroll Area scoped thresholds reduce noise
+- Toggle [X Hits] text off per scroll area
+- Number shortening & Skill Name abbreviation
+- Upward scrolling and additional animations, Static & Angled
+
+Check the Trello to see exactly what is being worked on and what changes have been completed https://trello.com/b/pgoWhgwq/gw2-sct
+
+
+**Example of Angled + Upward Scroll animation**
+
+<img src="https://s14.gifyu.com/images/bT1Np.gif" alt="sct" border="0" />
+
 
 ### Installing
 
-Go to the the [release page](https://github.com/Artenuvielle/GW2-SCT/releases) and download the newest release. Copy the file "d3d9_arcdps_sct.dll" into the "bin64/"" subfolder of your game directory.
+Go to the the [release page](https://github.com/jake-greygoose/GW2-SCT/releases) and download the newest release. Copy the file "gw2-sct.dll" into the "addons/"" subfolder of your game directory.
 
-If you want to add your own fonts copy them in the "addons/sct/fonts/" subfolder of your game directory. You can configure the output in the arcdps options panel (opened by default with Alt+Shift+T).
+If you want to add your own fonts copy them into the "addons/sct/fonts/" directory. 
+Similarly you may add additional icons in the "addons/sct/icons/" directory. 
 
-If for some reason the addon is not loading for you, check that you have the newest version of the Microsoft Visual C++ Redistributables installed. Get it [here](https://support.microsoft.com/de-de/help/2977003/the-latest-supported-visual-c-downloads).
+You can configure the output in the arcdps options panel (opened by default with Alt+Shift+T).
 
 ### Translations
 
-Translations can be found on this repository in the according language folder. If you have a translations for a new language or improvements for one, get in touch with me.
-
-Translations available and authors:
-* english (complete for 2.0-RC4, [Artenuvielle](https://github.com/Artenuvielle))
-
-Available translations and authors prior to version 2.0-RC3:
-* chinese (only complete for 1.1-RC3, [jiangyi0923](https://github.com/jiangyi0923))
-* french (only complete for 1.2-RC3, [livarkhal](https://github.com/livarkhal))
-
-If you want to check which translation strings were changed in which version have a look [here](https://github.com/Artenuvielle/GW2-SCT/blob/master/languages/LANGUAGE_CHANGELOG.md).
+All additions use language keys so translations could be made if someone was motivated to do it.
 
 ## Contributing
 
-Feel free to contact me on [Reddit](https://www.reddit.com/user/Artenuvielle/) if you have suggestions or encounter any bugs not listed below.
+Feel free to contact me on discord @__unreal
+
+if anyone has researched suppressing the games combat text (one of Arcdps few remaining extras) I'd be interested in hearing from you.
 
 ## Known Bugs
 
 * When having problems accessing the GW2 render API no skill icons can be downloaded or it takes a very long time. Download and extract the images in icons.zip file from [here](https://github.com/Artenuvielle/GW2-SCT/issues/11#issuecomment-606794158) and into the "addons/sct/icons" subfolder of your game directory.
 
-## Version History
-
-* 2.0
-	* fixed crash issues with messages trying to render after being deleted already
-* 2.0-RC5
-	* moved texture creation into imgui callback to resolve issues with crashing
-	* creating font atlases in advance to improve loading time
-* 2.0-RC4
-	* removed d3d9 support (game doesn't use d3d9 renderer anymore)
-	* changes to improve stability when creating and updating d3d11 textures
-* 2.0-RC3
-	* profile system (have multiple profiles of setting to quickly switch between and also have character bound profiles)
-	* transparency option for skill icons
-	* recording and playback of messages for easier option adjustment
-	* switched language and skill icon persistence format
-	* switched skill remap persistence format (if you want to remap e.g. skill id 46469 to 9168 and 30308 to 9120, put `{"46469":"9168","30308":"9120"}` into remap.json)
-* 2.0-RC2
-	* published source code
-	* output messages to multiple scroll areas
-	* switched options persistence format
-	* added %r parameter into template system for profession names
-* 2.0-RC1
-	* added own font rendering system (problems with other addons font scaling should be fixed)
-	* changed memory pool for textures (this caused the game to freeze when resizing game window previously)
-* 1.3-RC4
-	* updated multiple libraries used
-	* fixed skill filter options tab
-	* fixed game crashing if for any reason the GW2 rendering API was not reachable
-* 1.3-RC3
-	* fixed color pickers not working in message options tab
-	* fixed active options tab not being highlighted in menu bar
-* 1.3-RC2
-	* updated imgui library to version 1.80
-	* fixed compatibility with arcdps exports (feb.23.2021 changes)
-* 1.3-RC1
-	* added options for changing default font size and default crit font size
-	* improved skill filtering (all previously filtered skill ids won't work any more, please readd them manually)
-	* added a couple informational tooltips
-	* added posibility to read in a remap.ini for remapping skill ids to different ones for retrieving the correct icons (in the ini under [Active] section add key values like '46469 = 9168'; this e.g. fixes [SoJ](https://github.com/Artenuvielle/GW2-SCT/issues/9#issuecomment-604472445))
-	* fixed a bug in language file loading
-	* fixed a bug when deleting first scroll area in list
-	* fixed a bug when deleting first filtered skill id in list
-	* improved debug logging for skill icons download
-* 1.2-RC3
-	* Changed skill icon loading code to be compatible with d912pxy
-* 1.2-RC2
-	* Improved loading of language files
-	* Increased maximal scrolling speed for supporting higher display resolutions.
-	* Small tweak to skill icon loading to maybe fix some issues.
-* 1.2-RC1
-	* Added scroll areas
-	* Added translation support
-	* Added support for chinese fonts
-	* Added option for filtering out skills of a given id
-	* Optimized message interpreting being run once per message before render and then on the fly only when options change (boosts FPS).
-	* Fixed the mixup of damage and healing due to arcdps update
-	* Fixed skill icons not being displayed for pets
-* 1.1-RC3
-	* Added support for ArcDPS API revision 1
-	* Added list of skill ids to filter from all messages
-* 1.1-RC2
-	* Added skill icons as template parameter
-	* Fixed %p for pet/clone messages
-	* Added option to select master font
-	* Added option to hide messages to yourself in outgoing window
-* 1.1-RC1
-	* Added options window (removed options dropdown in arcdps options window)
-	* Added editable message templates
-* 1.0
-	* Fixed that enemy damage was shown as pet/clone damage
-* 1.0-RC1
-	*  initial release
 
 ## Authors
 
