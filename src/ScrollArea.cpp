@@ -14,18 +14,28 @@ GW2_SCT::ScrollArea::ScrollArea(std::shared_ptr<scroll_area_options_struct> opti
 }
 
 void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
-	if (!options->enabled) return;
+    if (!options->enabled) return;
 
-	auto messageData = m->getCopyOfFirstData();
-	if (!messageData) return;
+    // Determine effective message and type for this scroll area
+    MessageCategory effCategory = m->getCategory();
+    MessageType effType = m->getType();
+    std::shared_ptr<EventMessage> effMsg = m;
+    if (options->mergeCritWithHit && effType == MessageType::CRIT) {
+        effType = MessageType::PHYSICAL;
+        // Wrap the message for this scroll area as PHYSICAL
+        effMsg = std::make_shared<EventMessage>(effCategory, effType, m->getCopyOfFirstData());
+    }
 
-	for (auto& receiver : options->receivers) {
-		if (receiver->enabled && m->getCategory() == receiver->category && m->getType() == receiver->type) {
+    auto messageData = effMsg->getCopyOfFirstData();
+    if (!messageData) return;
 
-			std::string skillName = messageData->skillName ? std::string(messageData->skillName) : "";
-			if (receiver->isSkillFiltered(messageData->skillId, skillName, Options::get()->filterManager)) {
-				continue;
-			}
+    for (auto& receiver : options->receivers) {
+        if (receiver->enabled && effCategory == receiver->category && effType == receiver->type) {
+
+            std::string skillName = messageData->skillName ? std::string(messageData->skillName) : "";
+            if (receiver->isSkillFiltered(messageData->skillId, skillName, Options::get()->filterManager)) {
+                continue;
+            }
 
 			receiver->transient_showCombinedHitCount = options->showCombinedHitCount;
 			receiver->transient_abbreviateSkillNames = options->abbreviateSkillNames;
@@ -33,35 +43,35 @@ void GW2_SCT::ScrollArea::receiveMessage(std::shared_ptr<EventMessage> m) {
 
 			std::unique_lock<std::mutex> mlock(messageQueueMutex);
 			
-			if (!options->disableCombining && !messageQueue.empty()) {
-				if (Options::get()->combineAllMessages) {
-					for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) {
-						if (it->options == receiver && it->message->tryToCombineWith(m)) {
-							if (!receiver->isThresholdExceeded(it->message, messageData->skillId, skillName, Options::get()->filterManager)) {
-								it->update();
-							} else {
-								messageQueue.erase(std::next(it).base());
-							}
-							mlock.unlock();
-							return;
-						}
-					}
-				}
-				else {
-					auto backMessage = messageQueue.rbegin();
-					if (backMessage->options == receiver && backMessage->message->tryToCombineWith(m)) {
-						if (!receiver->isThresholdExceeded(backMessage->message, messageData->skillId, skillName, Options::get()->filterManager)) {
-							backMessage->update();
-						} else {
-							messageQueue.pop_back();
-						}
-						mlock.unlock();
-						return;
-					}
-				}
-			}
-			
-			MessagePrerender preMessage = MessagePrerender(m, receiver);
+            if (!options->disableCombining && !messageQueue.empty()) {
+                if (Options::get()->combineAllMessages) {
+                    for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) {
+                        if (it->options == receiver && it->message->tryToCombineWith(effMsg)) {
+                            if (!receiver->isThresholdExceeded(it->message, messageData->skillId, skillName, Options::get()->filterManager)) {
+                                it->update();
+                            } else {
+                                messageQueue.erase(std::next(it).base());
+                            }
+                            mlock.unlock();
+                            return;
+                        }
+                    }
+                }
+                else {
+                    auto backMessage = messageQueue.rbegin();
+                    if (backMessage->options == receiver && backMessage->message->tryToCombineWith(effMsg)) {
+                        if (!receiver->isThresholdExceeded(backMessage->message, messageData->skillId, skillName, Options::get()->filterManager)) {
+                            backMessage->update();
+                        } else {
+                            messageQueue.pop_back();
+                        }
+                        mlock.unlock();
+                        return;
+                    }
+                }
+            }
+            
+            MessagePrerender preMessage = MessagePrerender(effMsg, receiver);
 			
 			if (options->textCurve == TextCurve::ANGLED) {
 				if (options->angledDirection == 0) {

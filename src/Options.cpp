@@ -710,12 +710,18 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					}
 					ImGui::PopStyleColor();
 				}
-				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Disable_Message_Combining), &scrollAreaOptions->disableCombining)) {
-					requestSave();
-				}
-				if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Show_Combined_Hit_Count), &scrollAreaOptions->showCombinedHitCount)) {
-					requestSave();
-				}
+                if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Disable_Message_Combining), &scrollAreaOptions->disableCombining)) {
+                    requestSave();
+                }
+                if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Show_Combined_Hit_Count), &scrollAreaOptions->showCombinedHitCount)) {
+                    requestSave();
+                }
+                if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Merge_Crit_With_Hit), &scrollAreaOptions->mergeCritWithHit)) {
+                    requestSave();
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("%s", langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Merge_Crit_With_Hit_Tooltip));
+                }
             {
                 bool useCustomSpeed = scrollAreaOptions->customScrollSpeed > 0.0f;
                 if (ImGui::Checkbox(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Custom_Scroll_Speed), &useCustomSpeed)) {
@@ -843,33 +849,42 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 				}
 			}
 
-			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
-			int receiverOptionsCounter = 0;
-			auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
-			while (receiverOptionsIterator != std::end(scrollAreaOptions->receivers)) {
-				int receiverReturnFlags = ImGui::ReceiverCollapsible(receiverOptionsCounter, *receiverOptionsIterator);
-				if (receiverReturnFlags & ReceiverCollapsible_Remove) {
-					receiverOptionsIterator = scrollAreaOptions->receivers.erase(receiverOptionsIterator);
-					requestSave();
-				}
-				else {
-					if (receiverReturnFlags != 0) {
-						requestSave();
-					}
-					receiverOptionsIterator++;
-					receiverOptionsCounter++;
-				}
-			}
+            ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::All_Receivers));
+            int receiverOptionsCounter = 0;
+            auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
+            while (receiverOptionsIterator != std::end(scrollAreaOptions->receivers)) {
+                // Hide crit receivers if merging crit with hit
+                if (scrollAreaOptions->mergeCritWithHit && (*receiverOptionsIterator)->type == MessageType::CRIT) {
+                    receiverOptionsIterator++;
+                    continue;
+                }
+
+                int receiverReturnFlags = ImGui::ReceiverCollapsible(receiverOptionsCounter, *receiverOptionsIterator);
+                if (receiverReturnFlags & ReceiverCollapsible_Remove) {
+                    receiverOptionsIterator = scrollAreaOptions->receivers.erase(receiverOptionsIterator);
+                    requestSave();
+                }
+                else {
+                    if (receiverReturnFlags != 0) {
+                        requestSave();
+                    }
+                    receiverOptionsIterator++;
+                    receiverOptionsCounter++;
+                }
+            }
 			if (scrollAreaOptions->receivers.size() == 0) ImGui::Text("    -");
 			ImGui::Separator();
-			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::New_Receiver));
-			static MessageCategory newReceiverCategory = MessageCategory::PLAYER_OUT;
-			static MessageType newReceiverType = MessageType::PHYSICAL;
-			if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
-				auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;
-				scrollAreaOptions->receivers.push_back(std::make_shared<message_receiver_options_struct>(defaultReceiver));
-				requestSave();
-			}
+            ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::New_Receiver));
+            static MessageCategory newReceiverCategory = MessageCategory::PLAYER_OUT;
+            static MessageType newReceiverType = MessageType::PHYSICAL;
+            // Hide CRIT option when merging crit into hit
+            ImGui::SetNewReceiverHideCrit(scrollAreaOptions->mergeCritWithHit);
+            if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
+                auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;
+                scrollAreaOptions->receivers.push_back(std::make_shared<message_receiver_options_struct>(defaultReceiver));
+                requestSave();
+            }
+            ImGui::SetNewReceiverHideCrit(false);
 		}
 		else {
 			for (auto scrollAreaOptions : currentProfile->scrollAreaOptions) {

@@ -286,6 +286,7 @@ namespace GW2_SCT {
         j["shortenNumbersPrecision"] = p.shortenNumbersPrecision;
         j["disableCombining"] = p.disableCombining;
         j["showCombinedHitCount"] = p.showCombinedHitCount;
+        j["mergeCritWithHit"] = p.mergeCritWithHit;
         j["customScrollSpeed"] = p.customScrollSpeed;
         j["minLineSpacingPx"] = p.minLineSpacingPx;
         j["staticDisplayTimeMs"] = p.staticDisplayTimeMs;
@@ -313,6 +314,7 @@ namespace GW2_SCT {
         if (j.contains("shortenNumbersPrecision")) j.at("shortenNumbersPrecision").get_to(p.shortenNumbersPrecision);
         if (j.contains("disableCombining")) j.at("disableCombining").get_to(p.disableCombining);
         if (j.contains("showCombinedHitCount")) j.at("showCombinedHitCount").get_to(p.showCombinedHitCount);
+        if (j.contains("mergeCritWithHit")) j.at("mergeCritWithHit").get_to(p.mergeCritWithHit);
         if (j.contains("customScrollSpeed")) j.at("customScrollSpeed").get_to(p.customScrollSpeed);
         if (j.contains("minLineSpacingPx")) j.at("minLineSpacingPx").get_to(p.minLineSpacingPx);
         if (j.contains("staticDisplayTimeMs")) j.at("staticDisplayTimeMs").get_to(p.staticDisplayTimeMs);

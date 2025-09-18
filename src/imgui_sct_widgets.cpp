@@ -21,6 +21,10 @@ constexpr const int& clampi(const int& v, const int& lo, const int& hi) {
 	return (v < lo) ? lo : (hi < v) ? hi : v;
 }
 
+// Controls whether the NewReceiverLine hides CRIT from the type dropdown
+static bool g_NewReceiverHideCrit = false;
+void ImGui::SetNewReceiverHideCrit(bool hide) { g_NewReceiverHideCrit = hide; }
+
 bool ImGui::ClampingDragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* display_format, float power) {
 	float start = *v;
 	DragFloat(label, v, v_speed, v_min, v_max, display_format, power);
@@ -386,15 +390,22 @@ bool ImGui::NewReceiverLine(GW2_SCT::MessageCategory* categoryOut, GW2_SCT::Mess
 		EndCombo();
 	}
 	SameLine();
-	if (BeginCombo("##new-receiver-type-select", GW2_SCT::typeNames.at(*typeOut).c_str())) {
-		int typeIterator = 0;
-		for (auto& typeAndNamePair : GW2_SCT::typeNames) {
-			if (Selectable(BuildLabel(typeAndNamePair.second, "new-receiver-type-select", typeIterator).c_str(), *typeOut == typeAndNamePair.first)) {
-				*typeOut = typeAndNamePair.first;
-			}
-		}
-		EndCombo();
-	}
+    // If hiding crit, coerce current selection away from CRIT
+    if (g_NewReceiverHideCrit && *typeOut == GW2_SCT::MessageType::CRIT) {
+        *typeOut = GW2_SCT::MessageType::PHYSICAL;
+    }
+    if (BeginCombo("##new-receiver-type-select", GW2_SCT::typeNames.at(*typeOut).c_str())) {
+        int typeIterator = 0;
+        for (auto& typeAndNamePair : GW2_SCT::typeNames) {
+            if (g_NewReceiverHideCrit && typeAndNamePair.first == GW2_SCT::MessageType::CRIT) {
+                continue;
+            }
+            if (Selectable(BuildLabel(typeAndNamePair.second, "new-receiver-type-select", typeIterator).c_str(), *typeOut == typeAndNamePair.first)) {
+                *typeOut = typeAndNamePair.first;
+            }
+        }
+        EndCombo();
+    }
 	PopItemWidth();
 	SameLineEnd(button_size);
 	bool ret = false;

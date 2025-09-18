@@ -123,6 +123,8 @@ namespace GW2_SCT {
 		int  shortenNumbersPrecision = -1;
 		bool disableCombining = false;
 		float customScrollSpeed = -1.0f;
+		// Merge CRIT into PHYSICAL for this scroll area
+		bool mergeCritWithHit = false;
 		
 		float minLineSpacingPx = 12.0f;
 		float staticDisplayTimeMs = 3150.0f;
