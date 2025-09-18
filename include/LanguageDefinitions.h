@@ -219,6 +219,8 @@
   F(Text_Flow,)\
   F(All_Receivers,)\
   F(New_Receiver,)\
+  F(Merge_Crit_With_Hit,)\
+  F(Merge_Crit_With_Hit_Tooltip,)\
   F(Template,)\
   F(Available_Parameters,)\
   F(Delete_Confirmation_Title,)\
