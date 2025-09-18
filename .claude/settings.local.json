@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:\\Users\\Jake Greygoose\\source\\repos\\jake-greygoose\\GW2-SCT\\build\\_gw2sct.bat\")",
+      "Bash(./build_gw2sct.bat)",
+      "Bash(\"C:\\Users\\Jake Greygoose\\source\\repos\\jake-greygoose\\GW2-SCT\\build_gw2sct.bat\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
