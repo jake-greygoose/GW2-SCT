@@ -1,0 +1,15 @@
+#include "resource.h"
+
+// Embed higher-quality PNGs mapped by skill ID
+// Place the PNG files in the 'resources' folder next to this .rc
+
+736 RCDATA "resources/bleeding.png"
+737 RCDATA "resources/burning.png"
+723 RCDATA "resources/poison.png"
+861 RCDATA "resources/confusion.png"
+873 RCDATA "resources/retaliation.png"
+19426 RCDATA "resources/torment.png"
+718 RCDATA "resources/regeneration.png"
+17495 RCDATA "resources/regeneration.png"
+17674 RCDATA "resources/regeneration.png"
+

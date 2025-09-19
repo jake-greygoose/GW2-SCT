@@ -9,6 +9,7 @@
 #include "Profiles.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <windows.h>
 #include "Texture.h"
 
 
@@ -72,6 +73,23 @@ std::shared_ptr<std::vector<BYTE>> loadBinaryFileData(std::string filename) {
 	
 	std::shared_ptr<std::vector<BYTE>> ret = std::make_shared<std::vector<BYTE>>(std::istream_iterator<BYTE>(in), std::istream_iterator<BYTE>());
 	return ret;
+}
+
+extern HMODULE g_hModule;
+
+static std::shared_ptr<std::vector<BYTE>> LoadEmbeddedSkillIcon(uint32_t skillId) {
+    if (!g_hModule) return {};
+    HRSRC res = FindResourceW(g_hModule, MAKEINTRESOURCEW(skillId), RT_RCDATA);
+    if (!res) return {};
+    DWORD size = SizeofResource(g_hModule, res);
+    if (!size) return {};
+    HGLOBAL hRes = LoadResource(g_hModule, res);
+    if (!hRes) return {};
+    void* data = LockResource(hRes);
+    if (!data) return {};
+    auto bytes = std::make_shared<std::vector<BYTE>>();
+    bytes->assign(static_cast<const BYTE*>(data), static_cast<const BYTE*>(data) + size);
+    return bytes;
 }
 
 sf::contfree_safe_ptr<std::unordered_map<uint32_t, bool>> GW2_SCT::SkillIconManager::checkedIDs;
@@ -259,9 +277,17 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 		if (requestedIDs->size() > 0) {
 			std::list<std::tuple<uint32_t, std::string, std::string>> loadableIconURLs;
 			std::vector<uint32_t> idListToRequestFromApi = {};
+			std::list<std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>> embeddedLoadedIcons;
 			while (requestedIDs->size() > 0 && idListToRequestFromApi.size() <= 10) {
 				int frontRequestedSkillId = requestedIDs->front();
 				requestedIDs->pop_front();
+
+				// Prefer embedded resource if present
+				auto embedded = LoadEmbeddedSkillIcon((uint32_t)frontRequestedSkillId);
+				if (embedded && !embedded->empty()) {
+					embeddedLoadedIcons.push_back({ (uint32_t)frontRequestedSkillId, embedded });
+					continue;
+				}
 
 				auto iteratorToFoundStaticFileInformation = staticFiles.find(frontRequestedSkillId);
 				if (iteratorToFoundStaticFileInformation != staticFiles.end()) {
@@ -296,6 +322,7 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 			}
 
 			std::list<std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>> binaryLoadedIcons;
+			for (auto& p : embeddedLoadedIcons) binaryLoadedIcons.push_back(p);
 			for (auto it = loadableIconURLs.begin(); it != loadableIconURLs.end() && keepLoadThreadRunning; ++it) {
 				uint32_t curSkillId = std::get<0>(*it);
 				try {

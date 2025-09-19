@@ -73,6 +73,8 @@ if(WIN32)
   endif()
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
   target_sources(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+  # Embed custom icons via resource script
+  target_sources(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/resources/resources.rc)
 endif()
 
 # ---- WinHTTP (Windows native HTTP client) ----
