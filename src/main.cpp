@@ -17,6 +17,7 @@
 
 /* proto/globals */
 arcdps_exports arc_exports;
+HMODULE g_hModule = nullptr;
 void dll_init(HANDLE hModule);
 void dll_exit();
 extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t d3dversion);
@@ -34,8 +35,14 @@ GW2_SCT::SCTMain* sct;
 /* dll main -- winapi */
 BOOL APIENTRY DllMain(HANDLE hModule, DWORD ulReasonForCall, LPVOID lpReserved) {
 	switch (ulReasonForCall) {
-		case DLL_PROCESS_ATTACH: dll_init(hModule); break;
-		case DLL_PROCESS_DETACH: dll_exit(); break;
+		case DLL_PROCESS_ATTACH:
+			g_hModule = (HMODULE)hModule;
+			dll_init(hModule);
+			break;
+		case DLL_PROCESS_DETACH:
+			dll_exit();
+			g_hModule = nullptr;
+			break;
 
 		case DLL_THREAD_ATTACH: break;
 		case DLL_THREAD_DETACH: break;

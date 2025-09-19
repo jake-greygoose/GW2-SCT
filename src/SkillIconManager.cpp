@@ -79,7 +79,7 @@ extern HMODULE g_hModule;
 
 static std::shared_ptr<std::vector<BYTE>> LoadEmbeddedSkillIcon(uint32_t skillId) {
     if (!g_hModule) return {};
-    HRSRC res = FindResourceW(g_hModule, MAKEINTRESOURCEW(skillId), RT_RCDATA);
+    HRSRC res = FindResourceW(g_hModule, MAKEINTRESOURCEW(skillId), L"RCDATA");
     if (!res) return {};
     DWORD size = SizeofResource(g_hModule, res);
     if (!size) return {};
