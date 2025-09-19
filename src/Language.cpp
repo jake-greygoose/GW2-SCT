@@ -1089,7 +1089,7 @@ const nlohmann::ordered_json GW2_SCT::Language::defaultLanguage = convertLanguag
         { GW2_SCT::LanguageKey::Menu_Bar_General, "General" },
         { GW2_SCT::LanguageKey::Menu_Bar_Scroll_Areas, "Scroll Areas" },
         { GW2_SCT::LanguageKey::Menu_Bar_Profession_Colors, "Profession Colors" },
-        { GW2_SCT::LanguageKey::Menu_Bar_Filtered_Skills, "Filtered Skills" },
+        { GW2_SCT::LanguageKey::Menu_Bar_Filtered_Skills, "Filter Sets" },
         { GW2_SCT::LanguageKey::Menu_Bar_Skill_Icons, "Skill Icons" },
         { GW2_SCT::LanguageKey::Menu_Bar_Profiles, "Profiles" },
         { GW2_SCT::LanguageKey::Menu_Bar_Global_Thresholds, "Global Thresholds" },
