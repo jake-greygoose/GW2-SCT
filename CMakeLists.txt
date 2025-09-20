@@ -73,8 +73,45 @@ if(WIN32)
   endif()
   configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
   target_sources(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
-  # Embed custom icons via resource script
-  target_sources(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/resources/resources.rc)
+  # Generate RC that embeds only existing PNGs
+  set(GW2SCT_RES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
+  set(_RES_GEN "${CMAKE_CURRENT_BINARY_DIR}/resources_gen.rc")
+  # Write include with path relative to build dir to avoid spaces issues
+  set(_RES_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/resources/resource.h")
+  file(RELATIVE_PATH _RES_HEADER_REL "${CMAKE_CURRENT_BINARY_DIR}" "${_RES_HEADER}")
+  file(WRITE "${_RES_GEN}" "#include \"${_RES_HEADER_REL}\"\n")
+
+  # Map of skill-id to png filename
+  set(_ICON_LIST
+    736;bleeding.png
+    737;burning.png
+    723;poison.png
+    861;confusion.png
+    873;retaliation.png
+    19426;torment.png
+    718;regeneration.png
+    17495;regeneration.png
+    17674;regeneration.png
+  )
+  list(LENGTH _ICON_LIST _ICON_LEN)
+  math(EXPR _PAIRS "${_ICON_LEN} / 2")
+  foreach(_i RANGE 0 ${_PAIRS})
+    math(EXPR _idx_id   "${_i}*2")
+    math(EXPR _idx_file "${_i}*2+1")
+    if(_idx_file LESS _ICON_LEN)
+      list(GET _ICON_LIST ${_idx_id}  _skill_id)
+      list(GET _ICON_LIST ${_idx_file} _png)
+      set(_png_path "${GW2SCT_RES_DIR}/${_png}")
+      if(EXISTS "${_png_path}")
+        # Use path relative to build dir to avoid spaces in absolute path
+        file(RELATIVE_PATH _png_rel "${CMAKE_CURRENT_BINARY_DIR}" "${_png_path}")
+        # Escape backslashes for RC string
+        string(REPLACE "\\" "\\\\" _png_rel_esc "${_png_rel}")
+        file(APPEND "${_RES_GEN}" "${_skill_id} RCDATA \"${_png_rel_esc}\"\n")
+      endif()
+    endif()
+  endforeach()
+  target_sources(${TARGET_NAME} PRIVATE ${_RES_GEN})
 endif()
 
 # ---- WinHTTP (Windows native HTTP client) ----

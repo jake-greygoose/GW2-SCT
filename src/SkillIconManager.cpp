@@ -79,7 +79,7 @@ extern HMODULE g_hModule;
 
 static std::shared_ptr<std::vector<BYTE>> LoadEmbeddedSkillIcon(uint32_t skillId) {
     if (!g_hModule) return {};
-    HRSRC res = FindResourceW(g_hModule, MAKEINTRESOURCEW(skillId), L"RCDATA");
+    HRSRC res = FindResourceW(g_hModule, MAKEINTRESOURCEW(skillId), MAKEINTRESOURCEW(10));
     if (!res) return {};
     DWORD size = SizeofResource(g_hModule, res);
     if (!size) return {};
@@ -111,7 +111,10 @@ std::unordered_map<uint32_t, std::pair<std::string, std::string>> GW2_SCT::Skill
 	{ 19426, { "10BABF2708CA3575730AC662A2E72EC292565B08", "598887" } }, //Torment
 	{ 718, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
 	{ 17495, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
-	{ 17674, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } } //Regeneration
+	{ 17674, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
+	{ 99965, { "2F7AE267BA29B35DEC7F2C0FCE5C30D806E31E0D", "3122350" } }, //Flock Relic
+    { 100633, { "2F7AE267BA29B35DEC7F2C0FCE5C30D806E31E0D", "3122350" } }, //Flock Relic
+	{ 551, { "32BAB20860259FF3E8214E784E6BE7521213089C", "1012412" } } //Selfless Daring
 };
 
 void GW2_SCT::SkillIconManager::init() {
@@ -171,8 +174,8 @@ void GW2_SCT::SkillIconManager::cleanup() {
 }
 
 void GW2_SCT::SkillIconManager::internalInit() {
-	try {
-		if (Options::get()->skillIconsEnabled) {
+    try {
+        if (Options::get()->skillIconsEnabled) {
 			std::regex matcher("X-Rate-Limit-Limit: ([0-9]+)");
 			std::vector<int> skillIdList = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
 				auto foundHeader = headers.find("X-Rate-Limit-Limit");
@@ -181,19 +184,30 @@ void GW2_SCT::SkillIconManager::internalInit() {
 				}
 			});
 			bool preload = Options::get()->preloadAllSkillIcons;
-			checkedIDs->clear();
-			for (const auto& skillId: skillIdList) {
-				checkedIDs->insert({ skillId, false });
-				if (preload) {
-					requestedIDs->push_back(skillId);
-				}
-			}
-			for (auto it : staticFiles) {
-				checkedIDs->insert({ it.first, false });
-			}
+            checkedIDs->clear();
+            for (const auto& skillId: skillIdList) {
+                checkedIDs->insert({ skillId, false });
+                if (preload) {
+                    requestedIDs->push_back(skillId);
+                }
+            }
+            for (auto it : staticFiles) {
+                checkedIDs->insert({ it.first, false });
+                auto embedded = LoadEmbeddedSkillIcon((uint32_t)it.first);
+                if (embedded && !embedded->empty()) {
+                    (*checkedIDs)[it.first] = true;
+                    // Replace any existing icon
+                    auto existing = loadedIcons->find(it.first);
+                    if (existing != loadedIcons->end()) {
+                        existing->second = SkillIcon(embedded, (uint32_t)it.first);
+                    } else {
+                        loadedIcons->insert({ it.first, SkillIcon(embedded, (uint32_t)it.first) });
+                    }
+                }
+            }
 
-			spawnLoadThread();
-		}
+            spawnLoadThread();
+        }
 	} catch (std::exception& e) {
 		LOG("Skill icon thread error: ", e.what());
 	}
@@ -282,12 +296,11 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 				int frontRequestedSkillId = requestedIDs->front();
 				requestedIDs->pop_front();
 
-				// Prefer embedded resource if present
-				auto embedded = LoadEmbeddedSkillIcon((uint32_t)frontRequestedSkillId);
-				if (embedded && !embedded->empty()) {
-					embeddedLoadedIcons.push_back({ (uint32_t)frontRequestedSkillId, embedded });
-					continue;
-				}
+                auto embedded = LoadEmbeddedSkillIcon((uint32_t)frontRequestedSkillId);
+                if (embedded && !embedded->empty()) {
+                    embeddedLoadedIcons.push_back({ (uint32_t)frontRequestedSkillId, embedded });
+                    continue;
+                }
 
 				auto iteratorToFoundStaticFileInformation = staticFiles.find(frontRequestedSkillId);
 				if (iteratorToFoundStaticFileInformation != staticFiles.end()) {
@@ -386,19 +399,26 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 }
 
 GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
-	if (Options::get()->skillIconsEnabled) {
-		if (loadedIcons->find(skillID) != loadedIcons->end()) {
-			SkillIcon* ret = &(loadedIcons->at(skillID));
-			return ret;
-		}
-		if (!Options::get()->preloadAllSkillIcons) {
-			if (!(*checkedIDs)[skillID]) {
-				requestedIDs->push_back(skillID);
-				return nullptr;
-			}
-		}
-	}
-	return nullptr;
+    if (Options::get()->skillIconsEnabled) {
+        auto itLoaded = loadedIcons->find(skillID);
+        if (itLoaded != loadedIcons->end()) {
+            return &itLoaded->second;
+        }
+        auto embedded = LoadEmbeddedSkillIcon(skillID);
+        if (embedded && !embedded->empty()) {
+            // Mark as checked to avoid download scheduling
+            (*checkedIDs)[skillID] = true;
+            auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
+            return &ins.first->second;
+        }
+        if (!Options::get()->preloadAllSkillIcons) {
+            if (!(*checkedIDs)[skillID]) {
+                requestedIDs->push_back(skillID);
+                return nullptr;
+            }
+        }
+    }
+    return nullptr;
 }
 
 ImVec2 GW2_SCT::SkillIcon::draw(ImVec2 pos, ImVec2 size, ImU32 color) {
