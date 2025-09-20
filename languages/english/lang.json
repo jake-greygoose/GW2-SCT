@@ -76,7 +76,6 @@
     "Messages_Type_Burning": "Burning Damage",
     "Messages_Type_Poison": "Poison Damage",
     "Messages_Type_Confusion": "Confusion Damage",
-    "Messages_Type_Retaliation": "Retaliation Damage",
     "Messages_Type_Torment": "Torment Damage",
     "Messages_Type_Dot": "Other Continuous Damage",
     "Messages_Type_Heal": "Heal",
@@ -299,9 +298,6 @@
   },
   "Message_Player_In_Confusion": {
     "Default_Value": "%i ([col=%c]%n[/col]) -[col=B243FF]%v[/col]"
-  },
-  "Message_Player_In_Retaliation": {
-    "Default_Value": "%i ([col=%c]%n[/col]) -[col=FFED00]%v[/col]"
   },
   "Message_Player_In_Torment": {
     "Default_Value": "%i ([col=%c]%n[/col]) -[col=24451F]%v[/col]"

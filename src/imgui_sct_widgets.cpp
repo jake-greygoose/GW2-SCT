@@ -302,7 +302,6 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 		                     msgType == GW2_SCT::MessageType::BURNING ||
 		                     msgType == GW2_SCT::MessageType::POISON ||
 		                     msgType == GW2_SCT::MessageType::CONFUSION ||
-		                     msgType == GW2_SCT::MessageType::RETALIATION ||
 		                     msgType == GW2_SCT::MessageType::TORMENT ||
 		                     msgType == GW2_SCT::MessageType::DOT);
 		

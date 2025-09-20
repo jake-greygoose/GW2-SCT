@@ -234,9 +234,8 @@ namespace GW2_SCT {
 		BLEEDING,
 		BURNING,
 		POISON,
-		CONFUSION,
-		RETALIATION,
-		TORMENT,
+        CONFUSION,
+        TORMENT,
 		DOT,
 		HEAL,
 		HOT,
@@ -247,7 +246,7 @@ namespace GW2_SCT {
 		INVULNERABLE,
 		MISS
 	};
-#define NUM_MESSAGE_TYPES 18
+#define NUM_MESSAGE_TYPES 17
 	int messageTypeToInt(MessageType type);
 	MessageType intToMessageType(int i);
 }

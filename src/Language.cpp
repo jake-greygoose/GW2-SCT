@@ -103,7 +103,6 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
         { GW2_SCT::LanguageKey::Messages_Type_Burning, {} },
         { GW2_SCT::LanguageKey::Messages_Type_Poison, {} },
         { GW2_SCT::LanguageKey::Messages_Type_Confusion, {} },
-        { GW2_SCT::LanguageKey::Messages_Type_Retaliation, {} },
         { GW2_SCT::LanguageKey::Messages_Type_Torment, {} },
         { GW2_SCT::LanguageKey::Messages_Type_Dot, {} },
         { GW2_SCT::LanguageKey::Messages_Type_Heal, {} },
@@ -321,17 +320,7 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
             GW2_SCT::LanguageKey::Parameter_Description_d,
             GW2_SCT::LanguageKey::Default_Value,
         },
-    }) },
-    { createRequiredMessagePair(forCategoryAndType(Player_Out, Retaliation), {
-        {
-            GW2_SCT::LanguageKey::Parameter_Description_v,
-            GW2_SCT::LanguageKey::Parameter_Description_n,
-            GW2_SCT::LanguageKey::Parameter_Description_s,
-            GW2_SCT::LanguageKey::Parameter_Description_i,
-            GW2_SCT::LanguageKey::Parameter_Description_d,
-            GW2_SCT::LanguageKey::Default_Value,
-        },
-    }) },
+    }) },
     { createRequiredMessagePair(forCategoryAndType(Player_Out, Torment), {
         {
             GW2_SCT::LanguageKey::Parameter_Description_v,
@@ -499,19 +488,7 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
             GW2_SCT::LanguageKey::Parameter_Description_d,
             GW2_SCT::LanguageKey::Default_Value,
         },
-    }) },
-    { createRequiredMessagePair(forCategoryAndType(Player_In, Retaliation), {
-        {
-            GW2_SCT::LanguageKey::Parameter_Description_v,
-            GW2_SCT::LanguageKey::Parameter_Description_n,
-            GW2_SCT::LanguageKey::Parameter_Description_s,
-            GW2_SCT::LanguageKey::Parameter_Description_c,
-            GW2_SCT::LanguageKey::Parameter_Description_r,
-            GW2_SCT::LanguageKey::Parameter_Description_i,
-            GW2_SCT::LanguageKey::Parameter_Description_d,
-            GW2_SCT::LanguageKey::Default_Value,
-        },
-    }) },
+    }) },
     { createRequiredMessagePair(forCategoryAndType(Player_In, Torment), {
         {
             GW2_SCT::LanguageKey::Parameter_Description_v,
@@ -693,18 +670,7 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
             GW2_SCT::LanguageKey::Parameter_Description_d,
             GW2_SCT::LanguageKey::Default_Value,
         },
-    }) },
-    { createRequiredMessagePair(forCategoryAndType(Pet_Out, Retaliation), {
-        {
-            GW2_SCT::LanguageKey::Parameter_Description_v,
-            GW2_SCT::LanguageKey::Parameter_Description_n,
-            GW2_SCT::LanguageKey::Parameter_Description_s,
-            GW2_SCT::LanguageKey::Parameter_Description_p,
-            GW2_SCT::LanguageKey::Parameter_Description_i,
-            GW2_SCT::LanguageKey::Parameter_Description_d,
-            GW2_SCT::LanguageKey::Default_Value,
-        },
-    }) },
+    }) },
     { createRequiredMessagePair(forCategoryAndType(Pet_Out, Torment), {
         {
             GW2_SCT::LanguageKey::Parameter_Description_v,
@@ -888,20 +854,7 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
             GW2_SCT::LanguageKey::Parameter_Description_d,
             GW2_SCT::LanguageKey::Default_Value,
         },
-    }) },
-    { createRequiredMessagePair(forCategoryAndType(Pet_In, Retaliation), {
-        {
-            GW2_SCT::LanguageKey::Parameter_Description_v,
-            GW2_SCT::LanguageKey::Parameter_Description_n,
-            GW2_SCT::LanguageKey::Parameter_Description_s,
-            GW2_SCT::LanguageKey::Parameter_Description_p,
-            GW2_SCT::LanguageKey::Parameter_Description_c,
-            GW2_SCT::LanguageKey::Parameter_Description_r,
-            GW2_SCT::LanguageKey::Parameter_Description_i,
-            GW2_SCT::LanguageKey::Parameter_Description_d,
-            GW2_SCT::LanguageKey::Default_Value,
-        },
-    }) },
+    }) },
     { createRequiredMessagePair(forCategoryAndType(Pet_In, Torment), {
         {
             GW2_SCT::LanguageKey::Parameter_Description_v,
@@ -1120,7 +1073,6 @@ const nlohmann::ordered_json GW2_SCT::Language::defaultLanguage = convertLanguag
         { GW2_SCT::LanguageKey::Messages_Type_Burning, "Burning Damage" },
         { GW2_SCT::LanguageKey::Messages_Type_Poison, "Poison Damage" },
         { GW2_SCT::LanguageKey::Messages_Type_Confusion, "Confusion Damage" },
-        { GW2_SCT::LanguageKey::Messages_Type_Retaliation, "Retaliation Damage" },
         { GW2_SCT::LanguageKey::Messages_Type_Torment, "Torment Damage" },
         { GW2_SCT::LanguageKey::Messages_Type_Dot, "Other Continuous Damage" },
         { GW2_SCT::LanguageKey::Messages_Type_Heal, "Heal" },
@@ -1344,10 +1296,7 @@ const nlohmann::ordered_json GW2_SCT::Language::defaultLanguage = convertLanguag
     } },
     { GW2_SCT::LanguageCategory::Message_Player_In_Confusion, {
         { GW2_SCT::LanguageKey::Default_Value, "%i ([col=%c]%n[/col]) -[col=B243FF]%v[/col]" },
-    } },
-    { GW2_SCT::LanguageCategory::Message_Player_In_Retaliation, {
-        { GW2_SCT::LanguageKey::Default_Value, "%i ([col=%c]%n[/col]) -[col=FFED00]%v[/col]" },
-    } },
+    } },
     { GW2_SCT::LanguageCategory::Message_Player_In_Torment, {
         { GW2_SCT::LanguageKey::Default_Value, "%i ([col=%c]%n[/col]) -[col=24451F]%v[/col]" },
     } },

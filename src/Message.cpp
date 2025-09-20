@@ -261,7 +261,6 @@ namespace GW2_SCT {
             { MessageType::BURNING,        makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::POISON,         makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::CONFUSION,      makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
-            { MessageType::RETALIATION,    makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::TORMENT,        makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::DOT,            makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::HEAL,           makeOutBuffHandler(parameterFunctionValue) },
@@ -282,7 +281,6 @@ namespace GW2_SCT {
             { MessageType::BURNING,        makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::POISON,         makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::CONFUSION,      makeInBuffHandler(parameterFunctionNegativeBuffValue) },
-            { MessageType::RETALIATION,    makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::TORMENT,        makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::DOT,            makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::HEAL,           makeInBuffHandler(parameterFunctionValue) },
@@ -303,7 +301,6 @@ namespace GW2_SCT {
             { MessageType::BURNING,        makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::POISON,         makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::CONFUSION,      makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
-            { MessageType::RETALIATION,    makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::TORMENT,        makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::DOT,            makeOutBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::HEAL,           makeOutBuffHandler(parameterFunctionValue) },
@@ -324,7 +321,6 @@ namespace GW2_SCT {
             { MessageType::BURNING,        makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::POISON,         makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::CONFUSION,      makeInBuffHandler(parameterFunctionNegativeBuffValue) },
-            { MessageType::RETALIATION,    makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::TORMENT,        makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::DOT,            makeInBuffHandler(parameterFunctionNegativeBuffValue) },
             { MessageType::HEAL,           makeInBuffHandler(parameterFunctionValue) },
@@ -475,7 +471,6 @@ namespace GW2_SCT {
             case MessageType::BURNING:
             case MessageType::POISON:
             case MessageType::CONFUSION:
-            case MessageType::RETALIATION:
             case MessageType::TORMENT:
             case MessageType::DOT:
             case MessageType::HOT:

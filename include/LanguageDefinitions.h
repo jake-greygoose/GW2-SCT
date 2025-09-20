@@ -22,7 +22,6 @@
   F(Message_Type_Burning,)\
   F(Message_Type_Poison,)\
   F(Message_Type_Confusion,)\
-  F(Message_Type_Retaliation,)\
   F(Message_Type_Torment,)\
   F(Message_Type_DoT,)\
   F(Message_Type_Heal,)\
@@ -39,7 +38,6 @@
   F(Message_Player_Out_Burning,)\
   F(Message_Player_Out_Poison,)\
   F(Message_Player_Out_Confusion,)\
-  F(Message_Player_Out_Retaliation,)\
   F(Message_Player_Out_Torment,)\
   F(Message_Player_Out_DoT,)\
   F(Message_Player_Out_Heal,)\
@@ -56,7 +54,6 @@
   F(Message_Player_In_Burning,)\
   F(Message_Player_In_Poison,)\
   F(Message_Player_In_Confusion,)\
-  F(Message_Player_In_Retaliation,)\
   F(Message_Player_In_Torment,)\
   F(Message_Player_In_DoT,)\
   F(Message_Player_In_Heal,)\
@@ -73,7 +70,6 @@
   F(Message_Pet_Out_Burning,)\
   F(Message_Pet_Out_Poison,)\
   F(Message_Pet_Out_Confusion,)\
-  F(Message_Pet_Out_Retaliation,)\
   F(Message_Pet_Out_Torment,)\
   F(Message_Pet_Out_DoT,)\
   F(Message_Pet_Out_Heal,)\
@@ -90,7 +86,6 @@
   F(Message_Pet_In_Burning,)\
   F(Message_Pet_In_Poison,)\
   F(Message_Pet_In_Confusion,)\
-  F(Message_Pet_In_Retaliation,)\
   F(Message_Pet_In_Torment,)\
   F(Message_Pet_In_DoT,)\
   F(Message_Pet_In_Heal,)\
@@ -179,7 +174,6 @@
   F(Messages_Type_Burning,)\
   F(Messages_Type_Poison,)\
   F(Messages_Type_Confusion,)\
-  F(Messages_Type_Retaliation,)\
   F(Messages_Type_Torment,)\
   F(Messages_Type_Dot,)\
   F(Messages_Type_Heal,)\
