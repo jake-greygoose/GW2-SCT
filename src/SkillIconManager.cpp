@@ -111,9 +111,19 @@ std::unordered_map<uint32_t, std::pair<std::string, std::string>> GW2_SCT::Skill
 	{ 718, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
 	{ 17495, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
 	{ 17674, { "F69996772B9E18FD18AD0AABAB25D7E3FC42F261", "102835" } }, //Regeneration
+    { 13814, { "0DF523B154B8FD9F2E2B95F72A534E7C80352D2A", "1012544" } }, //Vampiric Strikes
+	{ 30285, { "22B370D754AC1D69A8FE66DCCB36BE940455E5EA", "1012539" } }, //Vampiric Aura
+    { 43260, { "2459E053ADCC6A6064DD505CC03FEA767D12DBB6", "1769970" } }, //Desert Empowerment
+	{ 43759, { "076FD4FE99097163B3A861CDDEEE15C460E80FA8", "1770537" } }, //Nefarious Favor
+	{ 54958, { "A4779F3D1924A75A58C0C100E82A0923A46C5CBD", "1769968" } }, //Herald of Sorrow Explosion
+	{ 13017, { "630D6100268010ED04B2ABE529BD4AE9110BF65F", "2503655" } }, //Panaku's Ambition"
+	{ 68070, { "3B7C573FBF124EC43F4102D530DE5E333F31014F", "1012750" } }, //Shielding Restoration"
 	{ 99965, { "2F7AE267BA29B35DEC7F2C0FCE5C30D806E31E0D", "3122350" } }, //Flock Relic
     { 100633, { "2F7AE267BA29B35DEC7F2C0FCE5C30D806E31E0D", "3122350" } }, //Flock Relic
-	{ 551, { "32BAB20860259FF3E8214E784E6BE7521213089C", "1012412" } } //Selfless Daring
+	{ 71356, { "DD034A0B53355503350F07CCFFE5CC06A90F41D9", "3187629" } }, //Karakosa Relic
+	{ 551, { "32BAB20860259FF3E8214E784E6BE7521213089C", "1012412" } }, //Selfless Daring
+	{ 549, { "B8FD6EB1B2C6CF7CEFE4715994B6FBCC201FF24D", "1012406" } } //Pure of Heart
+	
 };
 
 void GW2_SCT::SkillIconManager::init() {
@@ -399,13 +409,23 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 
 GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
     if (Options::get()->skillIconsEnabled) {
+        bool preferEmbedded = Options::get()->preferEmbeddedIcons;
         auto itLoaded = loadedIcons->find(skillID);
+        auto embedded = LoadEmbeddedSkillIcon(skillID);
+        if (preferEmbedded && embedded && !embedded->empty()) {
+            (*checkedIDs)[skillID] = true;
+            if (itLoaded != loadedIcons->end()) {
+                itLoaded->second = SkillIcon(embedded, skillID);
+                return &itLoaded->second;
+            } else {
+                auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
+                return &ins.first->second;
+            }
+        }
         if (itLoaded != loadedIcons->end()) {
             return &itLoaded->second;
         }
-        auto embedded = LoadEmbeddedSkillIcon(skillID);
-        if (embedded && !embedded->empty()) {
-            // Mark as checked to avoid download scheduling
+        if (!preferEmbedded && embedded && !embedded->empty()) {
             (*checkedIDs)[skillID] = true;
             auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
             return &ins.first->second;
