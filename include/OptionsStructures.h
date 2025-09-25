@@ -80,6 +80,7 @@ namespace GW2_SCT {
 		ObservableValue<bool> skillIconsEnabled = true;
 		ObservableValue<bool> preloadAllSkillIcons = false;
 		SkillIconDisplayType skillIconsDisplayType = SkillIconDisplayType::NORMAL;
+		bool preferEmbeddedIcons = false;
 		
 		bool globalThresholdsEnabled = false;
 		int globalDamageThreshold = 0;

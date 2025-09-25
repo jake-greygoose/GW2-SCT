@@ -201,7 +201,9 @@
     "Skill_Icons_Display_Type_Normal": "None",
     "Skill_Icons_Display_Type_Black_Culled": "Cull dark pixels",
     "Skill_Icons_Display_Type_Black_Border_Culled": "Cull border squares of dark pixels",
-    "Skill_Icons_Display_Type_Black_Border_Touching_Culled": "Cull dark pixels touching border or other transparent pixels"
+    "Skill_Icons_Display_Type_Black_Border_Touching_Culled": "Cull dark pixels touching border or other transparent pixels",
+    "Skill_Icons_Prefer_Embedded": "Prefer embedded icons",
+    "Skill_Icons_Prefer_Embedded_Tooltip": "When enabled, embedded icons in the DLL will replace any cached or downloaded icons with the same ID."
   },
   "Profile_Option_UI": {
     "Delete_Confirmation_Title": "Delete Profile?",

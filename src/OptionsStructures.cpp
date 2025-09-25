@@ -211,6 +211,7 @@ namespace GW2_SCT {
         j["skillIconsEnabled"] = p.skillIconsEnabled;
         j["preloadAllSkillIcons"] = p.preloadAllSkillIcons;
         j["skillIconsDisplayType"] = skillIconDisplayTypeToInt(p.skillIconsDisplayType);
+        j["preferEmbeddedIcons"] = p.preferEmbeddedIcons;
         j["globalThresholdsEnabled"] = p.globalThresholdsEnabled;
         j["globalDamageThreshold"] = p.globalDamageThreshold;
         j["globalHealThreshold"] = p.globalHealThreshold;
@@ -248,6 +249,7 @@ namespace GW2_SCT {
             int v{}; j.at("skillIconsDisplayType").get_to(v);
             p.skillIconsDisplayType = intSkillIconDisplayType(v);
         }
+        if (j.contains("preferEmbeddedIcons")) j.at("preferEmbeddedIcons").get_to(p.preferEmbeddedIcons);
         if (j.contains("globalThresholdsEnabled")) j.at("globalThresholdsEnabled").get_to(p.globalThresholdsEnabled);
         if (j.contains("globalDamageThreshold")) j.at("globalDamageThreshold").get_to(p.globalDamageThreshold);
         if (j.contains("globalHealThreshold")) j.at("globalHealThreshold").get_to(p.globalHealThreshold);
@@ -412,7 +414,6 @@ namespace GW2_SCT {
             case MessageType::BURNING:
             case MessageType::POISON:
             case MessageType::CONFUSION:
-            case MessageType::RETALIATION:
             case MessageType::TORMENT:
             case MessageType::DOT:
                 return ThresholdCategory::DAMAGE;

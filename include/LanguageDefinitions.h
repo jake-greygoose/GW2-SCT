@@ -203,6 +203,8 @@
   F(Skill_Icons_Display_Type_Black_Culled,)\
   F(Skill_Icons_Display_Type_Black_Border_Culled,)\
   F(Skill_Icons_Display_Type_Black_Border_Touching_Culled,)\
+  F(Skill_Icons_Prefer_Embedded,)\
+  F(Skill_Icons_Prefer_Embedded_Tooltip,)\
   F(Multiple_Sources,)\
   F(Number_Of_Hits,)\
   F(Horizontal_Offset,)\

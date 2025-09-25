@@ -1140,6 +1140,16 @@ void GW2_SCT::Options::paintSkillIcons() {
 	if (ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Preload), &currentProfile->preloadAllSkillIcons)) {
 		requestSave();
 	}
+    if (ImGui::Checkbox(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Prefer_Embedded), &currentProfile->preferEmbeddedIcons)) {
+        requestSave();
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::BeginTooltip();
+        ImGui::PushTextWrapPos(350.0f);
+        ImGui::Text(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Prefer_Embedded_Tooltip));
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
 	ImGui::Text("");
 	if (ImGui::BeginCombo(
 		ImGui::BuildVisibleLabel(langString(LanguageCategory::Skill_Icons_Option_UI, LanguageKey::Skill_Icons_Display_Type), "skill-icons-display-combo").c_str(),

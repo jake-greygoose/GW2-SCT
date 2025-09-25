@@ -92,6 +92,10 @@ if(WIN32)
     718;regeneration.png
     17495;regeneration.png
     17674;regeneration.png
+    12601;Natures_Renewal.png
+    69336;Natures_Renewal.png
+    12825;water_blast_combo.png
+    12836;water_blast_combo.png
   )
   list(LENGTH _ICON_LIST _ICON_LEN)
   math(EXPR _PAIRS "${_ICON_LEN} / 2")

@@ -1,0 +1,35 @@
+// Auto-generated from version.rc.in by CMake
+#include <winver.h>
+
+1 VERSIONINFO
+FILEVERSION 2025,9,25,601
+PRODUCTVERSION 2025,9,25,601
+FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+FILEFLAGS 0x1L
+#else
+FILEFLAGS 0x0L
+#endif
+FILEOS 0x40004L
+FILETYPE 0x2L // VFT_DLL
+FILESUBTYPE 0x0L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", ""
+      VALUE "FileDescription", "GW2-SCT"
+      VALUE "FileVersion", "v2025.9.25.601"
+      VALUE "InternalName", "gw2-sct"
+      VALUE "OriginalFilename", "gw2-sct.dll"
+      VALUE "ProductName", "GW2-SCT"
+      VALUE "ProductVersion", "v2025.9.25.601"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END
+

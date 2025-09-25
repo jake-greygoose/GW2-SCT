@@ -229,6 +229,8 @@ std::map<GW2_SCT::LanguageCategory, std::map<GW2_SCT::LanguageKey, GW2_SCT::Lang
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Culled, {} },
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Border_Culled, {} },
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Border_Touching_Culled, {} },
+        { GW2_SCT::LanguageKey::Skill_Icons_Prefer_Embedded, {} },
+        { GW2_SCT::LanguageKey::Skill_Icons_Prefer_Embedded_Tooltip, {} },
     } },
     { GW2_SCT::LanguageCategory::Profile_Option_UI, {
         { GW2_SCT::LanguageKey::Profile_Description, {} },
@@ -1199,6 +1201,8 @@ const nlohmann::ordered_json GW2_SCT::Language::defaultLanguage = convertLanguag
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Culled, "Cull dark pixels" },
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Border_Culled, "Cull border squares of dark pixels" },
         { GW2_SCT::LanguageKey::Skill_Icons_Display_Type_Black_Border_Touching_Culled, "Cull dark pixels touching border or other transparent pixels" },
+        { GW2_SCT::LanguageKey::Skill_Icons_Prefer_Embedded, "Prefer embedded icons" },
+        { GW2_SCT::LanguageKey::Skill_Icons_Prefer_Embedded_Tooltip, "When enabled, embedded icons in the DLL will replace any cached or downloaded icons with the same ID." },
     } },
     { GW2_SCT::LanguageCategory::Profile_Option_UI, {
         { GW2_SCT::LanguageKey::Profile_Description, "Profiles store all your other SCT options and can be quickly changed in this tab. You can either define which profile is used for the in game character you are currently playing or otherwise the profile selectected as master profile will be loaded." },
