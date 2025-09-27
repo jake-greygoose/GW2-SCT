@@ -48,6 +48,10 @@ namespace GW2_SCT {
 		std::map<std::string, std::string> characterProfileMap;
 		std::map<std::string, std::string> characterPveProfileMap;
 		std::map<std::string, std::string> characterWvwProfileMap;
+		bool updatesEnabled = true;
+		bool includePrerelease = false;
+		std::string updateRepo = "jake-greygoose/GW2-SCT";
+		std::string backupUpdateRepo = "jake-greygoose/GW2-SCT";
 	};
 	void to_json(nlohmann::json& j, const options_struct& p);
 	void from_json(const nlohmann::json& j, options_struct& p);

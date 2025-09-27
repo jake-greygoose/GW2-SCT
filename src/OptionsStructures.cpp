@@ -163,7 +163,11 @@ namespace GW2_SCT {
             {"profiles", p.profiles},
             {"characterProfileMap", p.characterProfileMap},
             {"characterPveProfileMap", p.characterPveProfileMap},
-            {"characterWvwProfileMap", p.characterWvwProfileMap}
+            {"characterWvwProfileMap", p.characterWvwProfileMap},
+            {"updatesEnabled", p.updatesEnabled},
+            {"includePrerelease", p.includePrerelease},
+            {"updateRepo", p.updateRepo},
+            {"backupUpdateRepo", p.backupUpdateRepo}
         };
     }
 
@@ -174,6 +178,10 @@ namespace GW2_SCT {
         if (j.contains("characterProfileMap")) j.at("characterProfileMap").get_to(p.characterProfileMap);
         if (j.contains("characterPveProfileMap")) j.at("characterPveProfileMap").get_to(p.characterPveProfileMap);
         if (j.contains("characterWvwProfileMap")) j.at("characterWvwProfileMap").get_to(p.characterWvwProfileMap);
+        if (j.contains("updatesEnabled")) j.at("updatesEnabled").get_to(p.updatesEnabled);
+        if (j.contains("includePrerelease")) j.at("includePrerelease").get_to(p.includePrerelease);
+        if (j.contains("updateRepo")) j.at("updateRepo").get_to(p.updateRepo);
+        if (j.contains("backupUpdateRepo")) j.at("backupUpdateRepo").get_to(p.backupUpdateRepo);
     }
 
 } // namespace GW2_SCT
