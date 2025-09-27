@@ -1,4 +1,4 @@
-﻿#include "SCTMain.h"
+#include "SCTMain.h"
 #include <string>
 #include <vector>
 #include <stdint.h>
@@ -12,6 +12,7 @@
 #include "ExampleMessageOptions.h"
 #include "Texture.h"
 #include "Mumblelink.h"
+#include "Updater.h"
 #include <chrono>
 #include <queue>
 #include <mutex>
@@ -69,6 +70,9 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	LOG("Started font manager");
 	Options::load();
 	LOG("Loaded options");
+
+	Updater::Init();
+	LOG("Updater initialized");
 
 	resetScrollAreas(Options::get());
 	LOG("Created ", scrollAreas.size(), " scroll areas");
@@ -153,6 +157,7 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 
 uintptr_t GW2_SCT::SCTMain::Release() {
 	SkillIconManager::cleanup();
+	Updater::Shutdown();
 	MumbleLink::i().shutdown();
 	logFile.flush();
 	logFile.close();
@@ -377,6 +382,7 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	Options::paint(scrollAreas);
 	Options::paintScrollAreaOverlay(scrollAreas);
 	ExampleMessageOptions::paint();
+	Updater::DrawPopup();
 	if (Options::get()->sctEnabled) {
 		ImVec2 windowSize((float)windowWidth, (float)windowHeight);
 		ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -411,6 +417,11 @@ uintptr_t GW2_SCT::SCTMain::UIOptions() {
 	if (ImGui::Button(langString(LanguageCategory::Example_Message_UI, LanguageKey::Title)))
 		ExampleMessageOptions::open();
 	ImGui::PopStyleVar();
+	ImGui::Spacing();
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	Updater::DrawSettingsInline();
 	return 0;
 }
 
@@ -453,3 +464,4 @@ void GW2_SCT::SCTMain::resetScrollAreas(std::shared_ptr<profile_options_struct> 
 				}
 			});
 }
+
