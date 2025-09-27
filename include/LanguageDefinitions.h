@@ -159,6 +159,41 @@
   F(General_Self_Only_As_Incoming_Toolip,)\
   F(General_Out_Only_For_Target,)\
   F(General_Out_Only_For_Target_Toolip,)\
+  F(Update_Menu_Header,)\
+  F(Update_Mode_Off,)\
+  F(Update_Mode_OnStable,)\
+  F(Update_Mode_OnPrerelease,)\
+  F(Update_Check_Tooltip,)\
+  F(Update_Button_CheckNow,)\
+  F(Update_Current_Version,)\
+  F(Update_Latest_Version,)\
+  F(Update_Last_Check,)\
+  F(Update_Message_Available,)\
+  F(Update_Message_UpToDate,)\
+  F(Update_Message_NoSuitable,)\
+  F(Update_Message_CurrentUnknown,)\
+  F(Update_Message_SourceSuffix,)\
+  F(Update_Source_GitHub,)\
+  F(Update_Source_ForgejoMirror,)\
+  F(Update_Source_Unknown,)\
+  F(Update_Popup_WindowTitle,)\
+  F(Update_Popup_Header,)\
+  F(Update_Popup_Current,)\
+  F(Update_Popup_Latest,)\
+  F(Update_Popup_Button_OpenRelease,)\
+  F(Update_Popup_Button_UpdateAutomatically,)\
+  F(Update_Popup_Status_Downloading,)\
+  F(Update_Popup_Status_Complete,)\
+  F(Update_Popup_Button_Restart,)\
+  F(Update_Popup_Button_Close,)\
+  F(Update_Popup_Status_Error,)\
+  F(Update_Message_FetchFailed,)\
+  F(Update_Message_RateLimited,)\
+  F(Update_Message_UnexpectedResponse,)\
+  F(Update_Message_NoReleases,)\
+  F(Update_Message_NoReleaseMatchingFilters,)\
+  F(Update_Message_ParseError,)\
+  F(Update_Message_SourceError,)\
   F(Scroll_Areas_New,)\
   F(Scroll_Areas_Name,)\
   F(Receiver_Name,) \
