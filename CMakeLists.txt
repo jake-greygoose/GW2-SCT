@@ -19,6 +19,7 @@ file(GLOB SIMPLEINI_SOURCES
 list(APPEND SOURCES ${IMGUI_SOURCES} ${SIMPLEINI_SOURCES})
 
 add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS} "include/SkillFilterStructures.h" "include/Mumblelink.h" "src/Mumblelink.cpp")
+target_link_libraries(${TARGET_NAME} PRIVATE version)
 target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
 
 target_compile_definitions(${TARGET_NAME} PRIVATE NOMINMAX)
