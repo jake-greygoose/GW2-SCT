@@ -43,7 +43,7 @@ namespace GW2_SCT {
 	class options_struct {
 	public:
 		std::string pveDefaultProfile = "default";
-		std::string wvwDefaultProfile = "default";
+		std::string wvwDefaultProfile = "wvw";
 		shared_ptr_map_with_creation<std::string, profile_options_struct> profiles;
 		std::map<std::string, std::string> characterProfileMap;
 		std::map<std::string, std::string> characterPveProfileMap;
@@ -128,17 +128,13 @@ namespace GW2_SCT {
 		int  shortenNumbersPrecision = -1;
 		bool disableCombining = false;
 		float customScrollSpeed = -1.0f;
-		// Merge CRIT into PHYSICAL for this scroll area
 		bool mergeCritWithHit = false;
 		
 		float minLineSpacingPx = 12.0f;
 		float staticDisplayTimeMs = 3150.0f;
 		
-		// Queue speedup control
-		float queueSpeedupFactor = 0.5f; // How much to speed up (0.5 = up to 1.5x speed)
-		float queueSpeedupSmoothingTau = 0.25f; // Smoothing time constant in seconds (lower = snappier)
-		
-		// Angled animation settings
+		float queueSpeedupFactor = 0.5f;
+		float queueSpeedupSmoothingTau = 0.25f;
 		float angleDegrees = 15.0f;
 		float angleJitterDegrees = 5.0f;
 		int angledDirection = 0;

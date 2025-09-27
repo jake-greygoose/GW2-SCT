@@ -375,9 +375,11 @@ void GW2_SCT::Options::load() {
 			j.get_to(tempOptions);
 			
 			if (tempOptions.profiles.empty()) {
-				LOG("Warning: JSON loaded but profiles is empty, initializing default profile");
+				LOG("Warning: JSON loaded but profiles is empty, initializing default and WvW profiles");
 				tempOptions.profiles[Profiles::getDefaultProfileName()] = std::make_shared<profile_options_struct>();
 				Profiles::initWithDefaults(tempOptions.profiles[Profiles::getDefaultProfileName()]);
+				tempOptions.profiles["wvw"] = std::make_shared<profile_options_struct>();
+				Profiles::initWithWvwDefaults(tempOptions.profiles["wvw"]);
 			}
 #if _DEBUG
 			else {
@@ -398,7 +400,14 @@ void GW2_SCT::Options::load() {
 				Profiles::initWithDefaults(options.profiles[Profiles::getDefaultProfileName()]);
 			}
 
-			// Ensure profile is set during initial load
+			if (options.profiles.find("wvw") == options.profiles.end()) {
+#if _DEBUG
+				LOG("WvW profile not found, creating it");
+#endif
+				options.profiles["wvw"] = std::make_shared<profile_options_struct>();
+				Profiles::initWithWvwDefaults(options.profiles["wvw"]);
+			}
+
 			if (!Profiles::get()) {
 				Profiles::requestSwitch(options.profiles[options.pveDefaultProfile]);
 			}
@@ -430,6 +439,11 @@ void GW2_SCT::Options::setDefault() {
 	auto defaultProfile = std::make_shared<profile_options_struct>();
 	Profiles::initWithDefaults(defaultProfile);
 	options.profiles[Profiles::getDefaultProfileName()] = defaultProfile;
+
+	auto wvwProfile = std::make_shared<profile_options_struct>();
+	Profiles::initWithWvwDefaults(wvwProfile);
+	options.profiles["wvw"] = wvwProfile;
+
 	Profiles::requestSwitch(defaultProfile);
 }
 
@@ -848,7 +862,6 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
             int receiverOptionsCounter = 0;
             auto receiverOptionsIterator = std::begin(scrollAreaOptions->receivers);
             while (receiverOptionsIterator != std::end(scrollAreaOptions->receivers)) {
-                // Hide crit receivers if merging crit with hit
                 if (scrollAreaOptions->mergeCritWithHit && (*receiverOptionsIterator)->type == MessageType::CRIT) {
                     receiverOptionsIterator++;
                     continue;
@@ -872,7 +885,6 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
             ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::New_Receiver));
             static MessageCategory newReceiverCategory = MessageCategory::PLAYER_OUT;
             static MessageType newReceiverType = MessageType::PHYSICAL;
-            // Hide CRIT option when merging crit into hit
             ImGui::SetNewReceiverHideCrit(scrollAreaOptions->mergeCritWithHit);
             if (ImGui::NewReceiverLine(&newReceiverCategory, &newReceiverType)) {
                 auto& defaultReceiver = receiverInformationPerCategoryAndType.at(newReceiverCategory).at(newReceiverType).defaultReceiver;

@@ -19,6 +19,7 @@ namespace GW2_SCT {
 		static void loadForCharacter(std::string characterName);
 		static void paintUI();
 		static void initWithDefaults(std::shared_ptr<profile_options_struct> p);
+		static void initWithWvwDefaults(std::shared_ptr<profile_options_struct> p);
 		
 		// Access to current profile name and character name
 		static const std::string& getCurrentProfileName() { return currentProfileName; }

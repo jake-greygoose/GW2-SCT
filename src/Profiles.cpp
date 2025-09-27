@@ -148,6 +148,93 @@ void GW2_SCT::Profiles::initWithDefaults(std::shared_ptr<profile_options_struct>
 	p->scrollAreaOptions.push_back(outgoingStruct);
 }
 
+void GW2_SCT::Profiles::initWithWvwDefaults(std::shared_ptr<profile_options_struct> p) {
+	initWithDefaults(p);
+
+	p->scrollSpeed = 90.f;
+	p->messagesInStack = 3;
+	p->globalThresholdsEnabled = false;
+	p->globalDamageThreshold = 0;
+	p->globalHealThreshold = 0;
+	p->globalAbsorbThreshold = 0;
+	p->globalThresholdRespectFilters = true;
+	p->preferEmbeddedIcons = true;
+
+	auto wvwFilterSet = p->filterManager.createFilterSet("WvW Alllow List");
+	wvwFilterSet->description = "";
+	wvwFilterSet->filterSet.defaultAction = FilterAction::BLOCK;
+
+	std::vector<std::string> allowedSkills = {
+		"Well of Corruption",
+		"Well of Suffering",
+		"Ghastly Breach",
+		"Nightfall",
+		"Grasping Darkness",
+		"Spinal Shivers",
+		"Test of Faith",
+		"Hunter's Ward",
+		"Burning Speed",
+		"Maiming Spear"
+	};
+
+	for (const auto& skillName : allowedSkills) {
+		SkillFilter allowFilter;
+		allowFilter.type = FilterType::SKILL_NAME;
+		allowFilter.action = FilterAction::ALLOW;
+		allowFilter.skillName = skillName;
+		wvwFilterSet->filterSet.filters.push_back(allowFilter);
+	}
+
+	p->scrollAreaOptions.clear();
+
+	auto incomingIcons = std::make_shared<scroll_area_options_struct>();
+	incomingIcons->name = "Incoming Icons";
+	incomingIcons->enabled = true;
+	incomingIcons->offsetX = -249.f;
+	incomingIcons->offsetY = -25.f;
+	incomingIcons->width = 40.f;
+	incomingIcons->height = 260.f;
+	incomingIcons->opacity = 1.0f;
+	incomingIcons->opacityOverrideEnabled = false;
+	incomingIcons->textAlign = TextAlign::RIGHT;
+	incomingIcons->textCurve = TextCurve::LEFT;
+	incomingIcons->scrollDirection = ScrollDirection::DOWN;
+	incomingIcons->abbreviateSkillNames = false;
+	incomingIcons->shortenNumbersPrecision = -1;
+	incomingIcons->disableCombining = false;
+	incomingIcons->showCombinedHitCount = false;
+	incomingIcons->mergeCritWithHit = true;
+	incomingIcons->customScrollSpeed = -1.0f;
+	incomingIcons->minLineSpacingPx = 12.0f;
+	incomingIcons->staticDisplayTimeMs = 3150.0f;
+	incomingIcons->queueSpeedupFactor = 0.3f;
+	incomingIcons->queueSpeedupSmoothingTau = 0.25f;
+	incomingIcons->angleDegrees = 15.0f;
+	incomingIcons->angleJitterDegrees = 5.0f;
+	incomingIcons->angledDirection = 0;
+
+	auto physicalReceiver = std::make_shared<message_receiver_options_struct>();
+	physicalReceiver->name = "Player Incoming - Physical Hit";
+	physicalReceiver->category = MessageCategory::PLAYER_IN;
+	physicalReceiver->type = MessageType::PHYSICAL;
+	physicalReceiver->enabled = true;
+	physicalReceiver->outputTemplate = std::string("%i");
+	physicalReceiver->color = std::string("FF0000");
+	physicalReceiver->font = 0;
+	physicalReceiver->fontSize = 50.f;
+	physicalReceiver->assignedFilterSets = {"WvW Alllow List"};
+	physicalReceiver->filtersEnabled = true;
+	physicalReceiver->thresholdsEnabled = false;
+	physicalReceiver->damageThreshold = 0;
+	physicalReceiver->healThreshold = 0;
+	physicalReceiver->absorbThreshold = 0;
+	physicalReceiver->thresholdRespectFilters = true;
+
+	incomingIcons->receivers.clear();
+	incomingIcons->receivers.push_back(physicalReceiver);
+	p->scrollAreaOptions.push_back(incomingIcons);
+}
+
 void GW2_SCT::Profiles::paintUI() {
 	auto& options = Options::getOptionsStruct();
 	bool doesCharacterMappingExist = currentCharacterName != "" && options.characterProfileMap.find(currentCharacterName) != options.characterProfileMap.end();
