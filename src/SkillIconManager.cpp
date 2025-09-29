@@ -3,6 +3,7 @@
 #include <string>
 #include <thread>
 #include <functional>
+#include <unordered_set>
 #include <regex>
 #include "Common.h"
 #include "Options.h"
@@ -94,6 +95,7 @@ static std::shared_ptr<std::vector<BYTE>> LoadEmbeddedSkillIcon(uint32_t skillId
 
 sf::contfree_safe_ptr<std::unordered_map<uint32_t, bool>> GW2_SCT::SkillIconManager::checkedIDs;
 sf::contfree_safe_ptr<std::unordered_map<uint32_t, GW2_SCT::SkillIcon>> GW2_SCT::SkillIconManager::loadedIcons;
+sf::contfree_safe_ptr<std::unordered_set<uint32_t>> GW2_SCT::SkillIconManager::embeddedIconIds;
 sf::contfree_safe_ptr<std::list<uint32_t>> GW2_SCT::SkillIconManager::requestedIDs;
 std::thread GW2_SCT::SkillIconManager::loadThread;
 int GW2_SCT::SkillIconManager::requestsPerMinute = 200;
@@ -194,6 +196,7 @@ void GW2_SCT::SkillIconManager::internalInit() {
 			});
 			bool preload = Options::get()->preloadAllSkillIcons;
             checkedIDs->clear();
+            embeddedIconIds->clear();
             for (const auto& skillId: skillIdList) {
                 checkedIDs->insert({ skillId, false });
                 if (preload) {
@@ -205,6 +208,7 @@ void GW2_SCT::SkillIconManager::internalInit() {
                 auto embedded = LoadEmbeddedSkillIcon((uint32_t)it.first);
                 if (embedded && !embedded->empty()) {
                     (*checkedIDs)[it.first] = true;
+                    embeddedIconIds->insert(it.first);
                     // Replace any existing icon
                     auto existing = loadedIcons->find(it.first);
                     if (existing != loadedIcons->end()) {
@@ -308,6 +312,7 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
                 auto embedded = LoadEmbeddedSkillIcon((uint32_t)frontRequestedSkillId);
                 if (embedded && !embedded->empty()) {
                     embeddedLoadedIcons.push_back({ (uint32_t)frontRequestedSkillId, embedded });
+                    embeddedIconIds->insert((uint32_t)frontRequestedSkillId);
                     continue;
                 }
 
@@ -408,57 +413,77 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 }
 
 GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
-    if (Options::get()->skillIconsEnabled) {
-        bool preferEmbedded = Options::get()->preferEmbeddedIcons;
-        auto itLoaded = loadedIcons->find(skillID);
-        auto embedded = LoadEmbeddedSkillIcon(skillID);
-        if (preferEmbedded && embedded && !embedded->empty()) {
-            (*checkedIDs)[skillID] = true;
+    if (!Options::get()->skillIconsEnabled) {
+        return nullptr;
+    }
+
+    bool preferEmbedded = Options::get()->preferEmbeddedIcons;
+    auto itLoaded = loadedIcons->find(skillID);
+
+    if (preferEmbedded) {
+        if (embeddedIconIds->find(skillID) != embeddedIconIds->end()) {
             if (itLoaded != loadedIcons->end()) {
-                itLoaded->second = SkillIcon(embedded, skillID);
                 return &itLoaded->second;
-            } else {
+            }
+        } else {
+            auto embedded = LoadEmbeddedSkillIcon(skillID);
+            if (embedded && !embedded->empty()) {
+                (*checkedIDs)[skillID] = true;
+                embeddedIconIds->insert(skillID);
+                if (itLoaded != loadedIcons->end()) {
+                    itLoaded->second = SkillIcon(embedded, skillID);
+                    return &itLoaded->second;
+                }
                 auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
                 return &ins.first->second;
             }
         }
+    } else {
         if (itLoaded != loadedIcons->end()) {
             return &itLoaded->second;
         }
-        if (!preferEmbedded && embedded && !embedded->empty()) {
+
+        auto embedded = LoadEmbeddedSkillIcon(skillID);
+        if (embedded && !embedded->empty()) {
             (*checkedIDs)[skillID] = true;
+            embeddedIconIds->insert(skillID);
             auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
             return &ins.first->second;
         }
-        if (!Options::get()->preloadAllSkillIcons) {
-            if (!(*checkedIDs)[skillID]) {
-                requestedIDs->push_back(skillID);
-                return nullptr;
-            }
+    }
+
+    if (itLoaded != loadedIcons->end()) {
+        return &itLoaded->second;
+    }
+
+    if (!Options::get()->preloadAllSkillIcons) {
+        if (!(*checkedIDs)[skillID]) {
+            requestedIDs->push_back(skillID);
+            return nullptr;
         }
     }
+
     return nullptr;
 }
 
 ImVec2 GW2_SCT::SkillIcon::draw(ImVec2 pos, ImVec2 size, ImU32 color) {
-	SkillIconDisplayType requestedDisplayType = Options::get()->skillIconsDisplayType;
-	if (!texturesCreated[requestedDisplayType]) {
-		requestTextureCreation(requestedDisplayType);
-	}
-	if (textures[requestedDisplayType] == nullptr) {
-		return ImVec2(0, 0);
-	}
+    SkillIconDisplayType requestedDisplayType = Options::get()->skillIconsDisplayType;
+    if (!texturesCreated[requestedDisplayType]) {
+        requestTextureCreation(requestedDisplayType);
+    }
+    if (textures[requestedDisplayType] == nullptr) {
+        return ImVec2(0, 0);
+    }
 
-	ImVec2 end(pos.x + size.x, pos.y + size.y);
-	if (textures[requestedDisplayType] != nullptr) {
-		textures[requestedDisplayType]->draw(pos, size, color);
-	}
-	else {
-		return ImVec2(0, 0);
-	}
-	return size;
+    ImVec2 end(pos.x + size.x, pos.y + size.y);
+    if (textures[requestedDisplayType] != nullptr) {
+        textures[requestedDisplayType]->draw(pos, size, color);
+    }
+    else {
+        return ImVec2(0, 0);
+    }
+    return size;
 }
-
 GW2_SCT::SkillIcon::SkillIcon(std::shared_ptr<std::vector<BYTE>> fileData, uint32_t skillID)
 	: fileData(fileData), skillID(skillID) {}
 

@@ -4,6 +4,7 @@
 #include <memory>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex>
 #include <imgui.h>
 #include <safe_ptr.h>
@@ -41,6 +42,7 @@ namespace GW2_SCT {
 		static sf::contfree_safe_ptr<std::unordered_map<uint32_t, bool>> checkedIDs;
 		static sf::contfree_safe_ptr<std::list<uint32_t>> requestedIDs;
 		static sf::contfree_safe_ptr<std::unordered_map<uint32_t, SkillIcon>> loadedIcons;
+		static sf::contfree_safe_ptr<std::unordered_set<uint32_t>> embeddedIconIds;
 		static std::thread loadThread;
 		static std::atomic<bool> keepLoadThreadRunning;
 		static long skillIconsEnabledCallbackId;
