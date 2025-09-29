@@ -269,51 +269,67 @@ static FetchResult FetchLatestRelease(const std::string& owner, const std::strin
             result.error = FormatLang(LanguageCategory::Option_UI, LanguageKey::Update_Message_NoReleases);
             return result;
         }
-        for (const auto& rel : j) {
-            if (rel.value("draft", false)) continue;
-            if (!includePrerelease && rel.value("prerelease", false)) continue;
-            std::string tag = rel.value("tag_name", std::string{});
-            auto version = ParseVersionAny(tag);
-            std::string htmlUrl = rel.value("html_url", std::string{});
-            std::string chosenAssetUrl;
-            if (rel.contains("assets") && rel["assets"].is_array()) {
-                const char* preferredNames[] = { "gw2-sct.dll", "d3d9_arcdps_sct.dll" };
-                for (const char* pref : preferredNames) {
-                    std::string lowerPreferred = pref;
-                    for (auto& c : lowerPreferred) c = (char)tolower(c);
-                    for (const auto& asset : rel["assets"]) {
-                        auto name = asset.value("name", std::string{});
-                        std::string nameLower = name; for (auto& c : nameLower) c = (char)tolower(c);
-                        if (nameLower == lowerPreferred) {
-                            chosenAssetUrl = asset.value("browser_download_url", std::string{});
-                            break;
-                        }
-                    }
-                    if (!chosenAssetUrl.empty()) break;
-                }
-                if (chosenAssetUrl.empty()) {
-                    for (const auto& asset : rel["assets"]) {
-                        auto name = asset.value("name", std::string{});
-                        std::string nameLower = name; for (auto& c : nameLower) c = (char)tolower(c);
-                        if (nameLower.size() >= 4 && nameLower.rfind(".dll") == nameLower.size() - 4) {
-                            chosenAssetUrl = asset.value("browser_download_url", std::string{});
-                            break;
-                        }
+    FetchResult bestCandidate;
+    bool haveCandidate = false;
+
+    for (const auto& rel : j) {
+        if (rel.value("draft", false)) continue;
+        if (!includePrerelease && rel.value("prerelease", false)) continue;
+
+        std::string tag = rel.value("tag_name", std::string{});
+        auto version = ParseVersionAny(tag);
+        std::string htmlUrl = rel.value("html_url", std::string{});
+        std::string chosenAssetUrl;
+        if (rel.contains("assets") && rel["assets"].is_array()) {
+            const char* preferredNames[] = { "gw2-sct.dll", "d3d9_arcdps_sct.dll" };
+            for (const char* pref : preferredNames) {
+                std::string lowerPreferred = pref;
+                for (auto& c : lowerPreferred) c = (char)tolower(c);
+                for (const auto& asset : rel["assets"]) {
+                    auto name = asset.value("name", std::string{});
+                    std::string nameLower = name; for (auto& c : nameLower) c = (char)tolower(c);
+                    if (nameLower == lowerPreferred) {
+                        chosenAssetUrl = asset.value("browser_download_url", std::string{});
+                        break;
                     }
                 }
-                if (chosenAssetUrl.empty() && !rel["assets"].empty()) {
-                    chosenAssetUrl = rel["assets"][0].value("browser_download_url", std::string{});
+                if (!chosenAssetUrl.empty()) break;
+            }
+            if (chosenAssetUrl.empty()) {
+                for (const auto& asset : rel["assets"]) {
+                    auto name = asset.value("name", std::string{});
+                    std::string nameLower = name; for (auto& c : nameLower) c = (char)tolower(c);
+                    if (nameLower.size() >= 4 && nameLower.rfind(".dll") == nameLower.size() - 4) {
+                        chosenAssetUrl = asset.value("browser_download_url", std::string{});
+                        break;
+                    }
                 }
             }
-            LOG("Updater: Found release ", tag, " via ", ReleaseSourceLabel(source), ", asset=", chosenAssetUrl.empty() ? "<none>" : chosenAssetUrl.c_str());
-            result.found = true;
-            result.version = version;
-            result.assetUrl = chosenAssetUrl;
-            result.htmlUrl = htmlUrl;
-            result.tagName = tag;
-            return result;
+            if (chosenAssetUrl.empty() && !rel["assets"].empty()) {
+                chosenAssetUrl = rel["assets"][0].value("browser_download_url", std::string{});
+            }
         }
-        result.error = FormatLang(LanguageCategory::Option_UI, LanguageKey::Update_Message_NoReleaseMatchingFilters);
+
+        LOG("Updater: Found release ", tag, " via ", ReleaseSourceLabel(source), ", asset=", chosenAssetUrl.empty() ? "<none>" : chosenAssetUrl.c_str());
+
+        if (!haveCandidate || IsNewer(version, bestCandidate.version)) {
+            bestCandidate.found = true;
+            bestCandidate.version = version;
+            bestCandidate.assetUrl = chosenAssetUrl;
+            bestCandidate.htmlUrl = htmlUrl;
+            bestCandidate.tagName = tag;
+            bestCandidate.error.clear();
+            bestCandidate.rateLimited = result.rateLimited;
+            bestCandidate.source = source;
+            haveCandidate = true;
+        }
+    }
+
+    if (haveCandidate) {
+        return bestCandidate;
+    }
+
+    result.error = FormatLang(LanguageCategory::Option_UI, LanguageKey::Update_Message_NoReleaseMatchingFilters);
     } catch (std::exception& e) {
         LOG("Updater: JSON parse error from ", ReleaseSourceLabel(source), ": ", e.what());
         result.error = FormatLang(LanguageCategory::Option_UI, LanguageKey::Update_Message_ParseError, ReleaseSourceDisplayName(source), e.what());
