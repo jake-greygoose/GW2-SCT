@@ -66,6 +66,9 @@ template<typename T, typename... Args> void log_rec(std::stringstream& strStream
 }
 
 extern std::ofstream logFile;
+extern size_t (*arcLogFileFunc)(char*);
+extern size_t (*arcLogWindowFunc)(char*);
+void SetArcDpsLogFunctions(size_t (*logFileFn)(char*), size_t (*logWindowFn)(char*));
 
 #ifdef _DEBUG
 #define _CRT_SECURE_NO_WARNINGS
@@ -77,15 +80,22 @@ template<typename... Args> void log(Args... args) {
 	strStream << "GW2 SCT: ";
 	log_rec(strStream, args...);
 	strStream << "\n";
+	std::string message = strStream.str();
 #ifdef _DEBUG
-	OutputDebugString(strStream.str().c_str());
-
+	OutputDebugString(message.c_str());
 	DWORD written = 0;
-	WriteConsoleA(debug_console_hnd, strStream.str().c_str(), (DWORD)strStream.str().length(), &written, 0);
+	WriteConsoleA(debug_console_hnd, message.c_str(), (DWORD)message.length(), &written, 0);
 #endif
-	logFile << strStream.str();
+	if (logFile.is_open()) {
+		logFile << message;
+	}
+	if (arcLogFileFunc) {
+		arcLogFileFunc(const_cast<char*>(message.c_str()));
+	}
+	if (arcLogWindowFunc) {
+		arcLogWindowFunc(const_cast<char*>(message.c_str()));
+	}
 }
-
 #define LOG(...) log(__VA_ARGS__);
 
 extern float windowHeight;
@@ -264,3 +274,4 @@ bool floatEqual(float a, float b);
 
 std::string fotos(FontId i, bool withMaster = true);
 FontId stofo(std::string const& s, bool withMaster = true);
+

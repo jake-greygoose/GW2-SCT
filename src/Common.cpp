@@ -11,8 +11,15 @@ ID3D11Device* GW2_SCT::d3Device11;
 ID3D11DeviceContext* GW2_SCT::d3D11Context;
 IDXGISwapChain* GW2_SCT::d3d11SwapChain;
 std::ofstream logFile;
+size_t (*arcLogFileFunc)(char*) = nullptr;
+size_t (*arcLogWindowFunc)(char*) = nullptr;
 char* arcvers;
 bool ensuredSCTDirectoryExists = false;
+
+void SetArcDpsLogFunctions(size_t (*logFileFn)(char*), size_t (*logWindowFn)(char*)) {
+	arcLogFileFunc = logFileFn;
+	arcLogWindowFunc = logWindowFn;
+}
 
 std::map<int, std::pair<std::string, GW2_SCT::FontType*>> fontMap;
 GW2_SCT::FontType* defaultFont;
