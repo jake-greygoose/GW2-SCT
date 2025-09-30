@@ -30,38 +30,22 @@ uintptr_t mod_combat_local(cbtevent* ev, ag* src, ag* dst, char* skillname, uint
 uintptr_t mod_imgui();
 uintptr_t mod_options();
 
-GW2_SCT::SCTMain* sct;
+GW2_SCT::SCTMain* sct = nullptr;
 
 /* dll main -- winapi */
-BOOL APIENTRY DllMain(HANDLE hModule, DWORD ulReasonForCall, LPVOID lpReserved) {
-	switch (ulReasonForCall) {
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
+	switch (reason) {
 		case DLL_PROCESS_ATTACH:
-			g_hModule = (HMODULE)hModule;
-			dll_init(hModule);
+			g_hModule = hModule;
 			break;
 		case DLL_PROCESS_DETACH:
-			dll_exit();
-			g_hModule = nullptr;
+		case DLL_THREAD_ATTACH:
+		case DLL_THREAD_DETACH:
+		default:
 			break;
-
-		case DLL_THREAD_ATTACH: break;
-		case DLL_THREAD_DETACH: break;
 	}
-	return 1;
+	return TRUE;
 }
-
-/* dll attach -- from winapi */
-void dll_init(HANDLE hModule) {
-	sct = new GW2_SCT::SCTMain();
-	return;
-}
-
-/* dll detach -- from winapi */
-void dll_exit() {
-	delete sct;
-	return;
-}
-
 /* export -- arcdps looks for this exported function and calls the address it returns on client load */
 extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t d3dversion) {
 	arcvers = arcversion;
@@ -97,12 +81,21 @@ arcdps_exports* mod_init() {
 	//AllocConsole();
 	debug_console_hnd = GetStdHandle(STD_OUTPUT_HANDLE);
 #endif
+	if (!sct) {
+		sct = new GW2_SCT::SCTMain();
+	}
 	arcdps_exports* ret = sct->Init(arcvers, mod_wnd, mod_combat_area, mod_imgui, mod_options, mod_combat_local);
 	return ret;
 }
 
 uintptr_t mod_release() {
-	return sct->Release();
+	if (!sct) {
+		return 0;
+	}
+	uintptr_t result = sct->Release();
+	delete sct;
+	sct = nullptr;
+	return result;
 }
 
 /* window callback -- return is assigned to umsg (return zero to not be processed by arcdps or game) */
