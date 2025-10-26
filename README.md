@@ -13,7 +13,8 @@ Inspired by the WoW addon Mik's Scrolling Battle Text.
 - I've not made any attempt to profile performance
 - A spiritual continuation in absence of the original author
 
-My primary motivation for resurrecting this addon is to level the playing field in WvW, as I believe this addon provides an advantage there. But it requires a specific configuration, which isn’t possible to make in the addon, and largely results in people sharing a config file on discord. Additionally the original addon doesn’t work at all on certain hardware (AMD graphics cards). 
+My primary motivation for resurrecting this addon was seeing how useful it could be in WvW, but being unable to use it with my AMD graphics card as it crashed immediately.
+I also didn't like that the optimal setup for WvW required editing the json config to blocklist thousands of id's. Even though these configs were quite widely shared it was still more gatekept than I would like.  
 
 An example of this configuration can be seen here: https://youtu.be/2O03Fe7lbnk?t=136
 
@@ -30,6 +31,7 @@ An example of this configuration can be seen here: https://youtu.be/2O03Fe7lbnk?
 - Toggle [X Hits] text off per scroll area
 - Number shortening & Skill Name abbreviation
 - Upward scrolling and additional animations, Static & Angled
+- Auto check for updates
 
 Check the Trello to see exactly what is being worked on and what changes have been completed https://trello.com/b/pgoWhgwq/gw2-sct
 
