@@ -1,0 +1,112 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    env:
+      DXSDK_DIR: 'C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)'
+      GW2SCT_BUILD_NUMBER: '${{ github.run_number }}'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install DirectX SDK (June 2010)
+        run: choco install -y directx-sdk
+        shell: pwsh
+
+      - name: Configure (CMake)
+        run: cmake -S . -B out/build-ci -G "Visual Studio 17 2022" -A x64 -DDXSDK_DIR="$env:DXSDK_DIR"
+        shell: pwsh
+
+      - name: Capture GW2-SCT version
+        id: version
+        run: |
+          $cache = Get-Content out/build-ci/CMakeCache.txt
+          $line = $cache | Where-Object { $_ -match '^GW2SCT_VERSION_STRING:STRING=(.+)$' } | Select-Object -First 1
+          if (-not $line) {
+            throw 'GW2SCT_VERSION_STRING not found in CMakeCache.txt'
+          }
+          $version = $Matches[1]
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Resolved version: $version"
+        shell: pwsh
+
+      - name: Build Release
+        run: cmake --build out/build-ci --config Release --parallel
+        shell: pwsh
+
+      - name: Build Debug
+        run: cmake --build out/build-ci --config Debug --parallel
+        shell: pwsh
+
+      - name: Package Release DLL
+        id: package
+        run: |
+          $dll = Join-Path 'out/build-ci/Release' 'gw2-sct.dll'
+          if (-not (Test-Path $dll)) {
+            throw "Release DLL not found at $dll"
+          }
+          $version = '${{ steps.version.outputs.version }}'
+          if (-not $version) {
+            throw 'Missing GW2-SCT version output'
+          }
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          $dest = Join-Path 'dist' "gw2-sct-$version.dll"
+          Copy-Item $dll $dest -Force
+          "package_path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Packaged DLL => $dest"
+        shell: pwsh
+
+      - name: Upload Release DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gw2-sct-${{ steps.version.outputs.version }}
+          path: ${{ steps.package.outputs.package_path }}
+
+
+      - name: Create Forgejo release
+        if: github.event_name != 'pull_request'
+        env:
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+        shell: pwsh
+        run: |
+          if (-not $env:FORGEJO_TOKEN) {
+            Write-Host "FORGEJO_TOKEN not set; skipping Forgejo release"
+            exit 0
+          }
+          $repo = 'jake-greygoose/GW2-SCT'
+          $base = 'https://git.gay/api/v1'
+          $headers = @{ Authorization = "token $env:FORGEJO_TOKEN" }
+          $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = "Automated mirror release from GitHub run $env:GITHUB_RUN_NUMBER." } | ConvertTo-Json -Compress
+          $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
+          $uploadUrl = $release.upload_url
+          if ($uploadUrl -match '\{.*\}') {
+            $uploadUrl = $uploadUrl.Split('{')[0]
+          }
+          $fileName = Split-Path $env:PACKAGE_PATH -Leaf
+          $uploadUri = "$uploadUrl?name=$fileName"
+          Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
+          Write-Host "Forgejo release created: $env:VERSION"
+
+      - name: Create GitHub Release
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            Automated build from ${{ github.ref }} (run ${{ github.run_number }}).
+          files: ${{ steps.package.outputs.package_path }}

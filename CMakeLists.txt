@@ -3,6 +3,12 @@ cmake_minimum_required(VERSION 3.20)
 project(gw2-sct LANGUAGES C CXX)
 set(TARGET_NAME gw2-sct)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(GW2SCTVersion)
+
+gw2sct_seed_version(GW2SCT_VERSION_STRING)
+gw2sct_log_version(GW2SCT_VERSION_STRING)
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
 
@@ -32,18 +38,22 @@ target_include_directories(${TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/simpleini"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/stb"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/object_threadsafe"
-  "$<$<BOOL:${DXSDK_DIR}>:${DXSDK_DIR}/Include>"
 )
+
+# Normalize optional DXSDK path once so includes/links stay consistent
+set(DXSDK_DIR_CLEAN "${DXSDK_DIR}")
+string(REPLACE "\"" "" DXSDK_DIR_CLEAN "${DXSDK_DIR_CLEAN}")
+if(DXSDK_DIR_CLEAN)
+  file(TO_CMAKE_PATH "${DXSDK_DIR_CLEAN}" DXSDK_DIR_CLEAN)
+  target_include_directories(${TARGET_NAME} PRIVATE "${DXSDK_DIR_CLEAN}/Include")
+endif()
 
 if(MSVC)
   target_compile_options(${TARGET_NAME} PRIVATE "/Zc:preprocessor" "/MP")
 endif()
 
 # ---- Embed display version into addon from CMake/BAT (SCT_VERSION_STRING) ----
-set(GW2SCT_VERSION_STRING "${GW2SCT_VERSION_STRING}" CACHE STRING "Display version string shown by addon")
-if(NOT GW2SCT_VERSION_STRING)
-  set(GW2SCT_VERSION_STRING "v0.0.0.0")
-endif()
+set(GW2SCT_VERSION_STRING "${GW2SCT_VERSION_STRING}" CACHE STRING "Display version string shown by addon" FORCE)
 target_compile_definitions(${TARGET_NAME} PRIVATE SCT_VERSION_STRING=\"${GW2SCT_VERSION_STRING}\")
 
 # ---- Windows VERSIONINFO resource for DLL file properties ----
@@ -123,9 +133,8 @@ endif()
 target_link_libraries(${TARGET_NAME} PRIVATE winhttp)
 
 # ---- DirectX SDK (June 2010) ----
-if(DXSDK_DIR)
-  file(TO_CMAKE_PATH "${DXSDK_DIR}" _dxsdk_norm)
-  target_link_directories(${TARGET_NAME} PRIVATE "${_dxsdk_norm}/Lib/x64")
+if(DXSDK_DIR_CLEAN)
+  target_link_directories(${TARGET_NAME} PRIVATE "${DXSDK_DIR_CLEAN}/Lib/x64")
   target_link_libraries(${TARGET_NAME} PRIVATE d3dx11 dxguid d3d11 dxgi)
 endif()
 
