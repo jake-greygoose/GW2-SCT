@@ -108,15 +108,21 @@ jobs:
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+          GH_RELEASE_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN || github.token }}
+          USING_PERSONAL_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN != '' }}
           VERSION: ${{ steps.version.outputs.version }}
           PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+          DEFAULT_GITHUB_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          if (-not $env:GITHUB_TOKEN) { throw 'PERSONAL_GITHUB_TOKEN secret is required' }
+          $token = $env:GH_RELEASE_TOKEN
+          if (-not $token) { throw 'No token available for GitHub release' }
           $repo = '${{ github.repository }}'
           $base = 'https://api.github.com'
-          $headers = @{ Authorization = "token $env:GITHUB_TOKEN"; 'User-Agent' = 'gw2-sct-release' }
+          $headers = @{ Authorization = "token $token"; 'User-Agent' = 'gw2-sct-release' }
+          if ($env:USING_PERSONAL_TOKEN -ne 'true') {
+            Write-Host 'PERSONAL_GITHUB_TOKEN not provided; falling back to default workflow token (release will appear by github-actions).'
+          }
           $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = '' } | ConvertTo-Json -Compress
           try {
             $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
@@ -128,5 +134,18 @@ jobs:
           if (-not $release.upload_url) { throw 'GitHub release upload URL missing' }
           $uploadUrl = $release.upload_url.Split('{')[0]
           $fileName = Split-Path $env:PACKAGE_PATH -Leaf
-          $uploadUri = "$uploadUrl?name=$fileName"
-          Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
+          Add-Type -AssemblyName System.Web
+          $encodedName = [System.Web.HttpUtility]::UrlEncode($fileName)
+          $uploadUri = "$uploadUrl?name=$encodedName"
+          try {
+            Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
+          } catch {
+            if ($_.Exception.Response.StatusCode.Value__ -eq 422) {
+              $assets = Invoke-RestMethod -Method GET -Uri "$base/repos/$repo/releases/$($release.id)/assets" -Headers $headers -ErrorAction Stop
+              $existing = $assets | Where-Object { $_.name -eq $fileName } | Select-Object -First 1
+              if ($existing) {
+                Invoke-RestMethod -Method DELETE -Uri "$base/repos/$repo/releases/assets/$($existing.id)" -Headers $headers -ErrorAction Stop
+              }
+              Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
+            } else { throw }
+          }
