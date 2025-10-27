@@ -12,17 +12,12 @@ on:
 jobs:
   windows-build:
     runs-on: windows-latest
-    env:
-      DXSDK_DIR: 'C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install DirectX SDK (June 2010)
-        run: choco install -y directx-sdk
-        shell: pwsh
 
       - name: Seed build version
         id: seed
@@ -38,7 +33,7 @@ jobs:
         shell: pwsh
 
       - name: Configure (CMake)
-        run: cmake -S . -B out/build-ci -G "Visual Studio 17 2022" -A x64 -DDXSDK_DIR="$env:DXSDK_DIR"
+        run: cmake -S . -B out/build-ci -G "Visual Studio 17 2022" -A x64
         shell: pwsh
 
       - name: Capture GW2-SCT version

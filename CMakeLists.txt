@@ -34,14 +34,6 @@ target_include_directories(${TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/object_threadsafe"
 )
 
-# Normalize optional DXSDK path once so includes/links stay consistent
-set(DXSDK_DIR_CLEAN "${DXSDK_DIR}")
-string(REPLACE "\"" "" DXSDK_DIR_CLEAN "${DXSDK_DIR_CLEAN}")
-if(DXSDK_DIR_CLEAN)
-  file(TO_CMAKE_PATH "${DXSDK_DIR_CLEAN}" DXSDK_DIR_CLEAN)
-  target_include_directories(${TARGET_NAME} PRIVATE "${DXSDK_DIR_CLEAN}/Include")
-endif()
-
 if(MSVC)
   target_compile_options(${TARGET_NAME} PRIVATE "/Zc:preprocessor" "/MP")
 endif()
@@ -126,11 +118,8 @@ endif()
 # ---- WinHTTP (Windows native HTTP client) ----
 target_link_libraries(${TARGET_NAME} PRIVATE winhttp)
 
-# ---- DirectX SDK (June 2010) ----
-if(DXSDK_DIR_CLEAN)
-  target_link_directories(${TARGET_NAME} PRIVATE "${DXSDK_DIR_CLEAN}/Lib/x64")
-  target_link_libraries(${TARGET_NAME} PRIVATE d3dx11 dxguid d3d11 dxgi)
-endif()
+# ---- Direct3D 11 ----
+target_link_libraries(${TARGET_NAME} PRIVATE d3d11 dxgi dxguid)
 
 # ---- Post-build copy/rename to GW2 ----
 if(GW2_PATH AND GW2_SUBPATH)

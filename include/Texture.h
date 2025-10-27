@@ -1,8 +1,8 @@
 #pragma once
 #include "imgui.h"
+#include <d3d11.h>
 #include <mutex>
 #include <chrono>
-#include <D3dx11tex.h>
 
 namespace GW2_SCT {
     class Texture {
