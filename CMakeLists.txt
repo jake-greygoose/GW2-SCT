@@ -18,11 +18,7 @@ file(GLOB IMGUI_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/misc/cpp/*.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/*.c")
-file(GLOB SIMPLEINI_SOURCES
-  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/simpleini/*.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/simpleini/*.c")
-
-list(APPEND SOURCES ${IMGUI_SOURCES} ${SIMPLEINI_SOURCES})
+list(APPEND SOURCES ${IMGUI_SOURCES})
 
 add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS} "include/SkillFilterStructures.h" "include/Mumblelink.h" "src/Mumblelink.cpp")
 target_link_libraries(${TARGET_NAME} PRIVATE version)
@@ -33,11 +29,8 @@ target_include_directories(${TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/misc/cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/httplib"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/json/single_include/nlohmann"
-  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/simpleini"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/stb"
-  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/object_threadsafe"
 )
 
 # Normalize optional DXSDK path once so includes/links stay consistent
