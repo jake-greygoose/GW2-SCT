@@ -111,6 +111,5 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          body: |
-            Automated build from ${{ github.ref }} (run ${{ github.run_number }}).
+          body: ${{ steps.version.outputs.version }}
           files: ${{ steps.package.outputs.package_path }}
