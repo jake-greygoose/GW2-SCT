@@ -268,13 +268,8 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					std::string fileName = iconFile.substr(0, itDot);
 					uint32_t skillID = std::strtoul(fileName.c_str(), NULL, 10);
 					if (skillID != 0) {
-						loadedIcons->insert(std::pair<uint32_t, SkillIcon>(skillID, SkillIcon(loadBinaryFileData(iconPath + iconFile), skillID)));
-						{
-							std::lock_guard<decltype(requestedIDs)> lock(requestedIDs);
-							if (std::find(requestedIDs->begin(), requestedIDs->end(), skillID) == requestedIDs->end()) {
-								requestedIDs->push_back(skillID);
-							}
-						}
+						loadedIcons->insert({ skillID, SkillIcon(loadBinaryFileData(iconPath + iconFile), skillID) });
+						(*checkedIDs)[skillID] = true;
 					}
 				}
 			}
