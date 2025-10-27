@@ -107,10 +107,26 @@ jobs:
 
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          body: |
-            Automated build from ${{ github.ref }} (run ${{ github.run_number }}).
-          files: ${{ steps.package.outputs.package_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+        shell: pwsh
+        run: |
+          if (-not $env:GITHUB_TOKEN) { throw 'PERSONAL_GITHUB_TOKEN secret is required' }
+          $repo = '${{ github.repository }}'
+          $base = 'https://api.github.com'
+          $headers = @{ Authorization = "token $env:GITHUB_TOKEN"; 'User-Agent' = 'gw2-sct-release' }
+          $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = '' } | ConvertTo-Json -Compress
+          try {
+            $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
+          } catch {
+            if ($_.Exception.Response.StatusCode.Value__ -eq 422) {
+              $release = Invoke-RestMethod -Method GET -Uri "$base/repos/$repo/releases/tags/$($env:VERSION)" -Headers $headers -ErrorAction Stop
+            } else { throw }
+          }
+          if (-not $release.upload_url) { throw 'GitHub release upload URL missing' }
+          $uploadUrl = $release.upload_url.Split('{')[0]
+          $fileName = Split-Path $env:PACKAGE_PATH -Leaf
+          $uploadUri = "$uploadUrl?name=$fileName"
+          Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
