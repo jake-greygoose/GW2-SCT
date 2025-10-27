@@ -6,6 +6,7 @@
 #include <functional>
 #include <unordered_set>
 #include <regex>
+#include <algorithm>
 #include <cctype>
 #include "Common.h"
 #include "Options.h"
@@ -20,25 +21,32 @@
 nlohmann::json getJSON(std::string url, std::function<void(std::map<std::string, std::string>)> callback = nullptr) {
 	std::string fullUrl = "https://api.guildwars2.com" + url;
 	std::string response = HTTPClient::GetRequest(HTTPClient::StringToWString(fullUrl));
-	
+
 	if (response.empty()) {
-		throw std::runtime_error(("Empty response from " + fullUrl).c_str());
+		throw std::runtime_error("Empty response from " + fullUrl);
 	}
-	
-	if (callback != nullptr) {
+
+	if (callback) {
 		std::map<std::string, std::string> emptyHeaders;
 		callback(emptyHeaders);
 	}
-	
-	// Detect HTML or other non-JSON payloads, e.g. API outage returning an error page
-	if (!response.empty()) {
-		std::string::const_iterator it = response.begin();
-		while (it != response.end() && std::isspace(static_cast<unsigned char>(*it))) { ++it; }
-		if (it == response.end() || *it == '<') {
-			throw std::runtime_error(("Non-JSON response from " + fullUrl).c_str());
-		}
+
+	auto it = response.begin();
+	while (it != response.end() && std::isspace(static_cast<unsigned char>(*it))) { ++it; }
+	if (it == response.end()) {
+		throw std::runtime_error("Whitespace-only response from " + fullUrl);
 	}
-	
+
+	if (*it == '<') {
+		std::string snippet(response.begin(), response.begin() + std::min<size_t>(response.size(), 256));
+		std::string lower = snippet;
+		for (char& ch : lower) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+		if (lower.find("service unavailable") != std::string::npos || lower.find("503") != std::string::npos) {
+			throw std::runtime_error("Service unavailable response from " + fullUrl);
+		}
+		throw std::runtime_error("Non-JSON response from " + fullUrl);
+	}
+
 	try {
 		return nlohmann::json::parse(response);
 	} catch (const nlohmann::json::parse_error& e) {
@@ -351,14 +359,18 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					nlohmann::json possibleSkillInformationList;
 					try {
 						possibleSkillInformationList = getJSON("/v2/skills?ids=" + idStringToRequestFromApi);
-					} catch (const std::exception& e) {
+				} catch (const std::exception& e) {
+					static bool s_detailFetchWarned = false;
+					if (!s_detailFetchWarned) {
 						LOG("Skill icon detail fetch failed: ", e.what());
-						for (auto& unresolvedSkillId : idListToRequestFromApi) {
-							requestedIDs->push_back(unresolvedSkillId);
-						}
-						std::this_thread::sleep_for(std::chrono::seconds(5));
-						continue;
+						s_detailFetchWarned = true;
 					}
+					for (auto& unresolvedSkillId : idListToRequestFromApi) {
+						requestedIDs->push_back(unresolvedSkillId);
+					}
+					std::this_thread::sleep_for(std::chrono::seconds(5));
+					continue;
+				}
 					if (possibleSkillInformationList.is_array()) {
 						std::vector<nlohmann::json> skillInformationList = possibleSkillInformationList;
 						for (auto& skillInformation : skillInformationList) {
