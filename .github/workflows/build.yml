@@ -14,7 +14,6 @@ jobs:
     runs-on: windows-latest
     env:
       DXSDK_DIR: 'C:\Program Files (x86)\Microsoft DirectX SDK (June 2010)'
-      GW2SCT_BUILD_NUMBER: '${{ github.run_number }}'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,6 +22,19 @@ jobs:
 
       - name: Install DirectX SDK (June 2010)
         run: choco install -y directx-sdk
+        shell: pwsh
+
+      - name: Seed build version
+        id: seed
+        run: |
+          $now = Get-Date
+          $minuteOfDay = $now.Hour * 60 + $now.Minute
+          $versionCore = $now.ToString('yyyy.M.d.') + $minuteOfDay
+          $versionString = "v$versionCore"
+          "GW2SCT_BUILD_NUMBER=$minuteOfDay" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GW2SCT_VERSION_STRING=$versionString" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "seeded_version=$versionString" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Seeded GW2SCT version: $versionString"
         shell: pwsh
 
       - name: Configure (CMake)
