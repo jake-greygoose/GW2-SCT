@@ -53,9 +53,8 @@ extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiCont
 	ImGui::SetAllocatorFunctions((void *(*)(size_t, void*))mallocfn, (void(*)(void*, void*))freefn); // on imgui 1.80+
 	GW2_SCT::d3dversion = d3dversion;
 
-	auto arcLogFile = reinterpret_cast<size_t (*)(char*)>(GetProcAddress((HMODULE)arcdll, "e3"));
 	auto arcLogWindow = reinterpret_cast<size_t (*)(char*)>(GetProcAddress((HMODULE)arcdll, "e8"));
-	SetArcDpsLogFunctions(arcLogFile, arcLogWindow);
+	SetArcDpsLogFunctions(arcLogWindow);
 
 	std::string arcversString(arcvers);
 	arcversString = arcversString.substr(0, arcversString.find_first_of('.'));
@@ -99,7 +98,7 @@ uintptr_t mod_release() {
 	uintptr_t result = sct->Release();
 	delete sct;
 	sct = nullptr;
-	SetArcDpsLogFunctions(nullptr, nullptr);
+	SetArcDpsLogFunctions(nullptr);
 	return result;
 }
 

@@ -66,9 +66,8 @@ template<typename T, typename... Args> void log_rec(std::stringstream& strStream
 }
 
 extern std::ofstream logFile;
-extern size_t (*arcLogFileFunc)(char*);
 extern size_t (*arcLogWindowFunc)(char*);
-void SetArcDpsLogFunctions(size_t (*logFileFn)(char*), size_t (*logWindowFn)(char*));
+void SetArcDpsLogFunctions(size_t (*logWindowFn)(char*));
 
 #ifdef _DEBUG
 #define _CRT_SECURE_NO_WARNINGS
@@ -88,9 +87,6 @@ template<typename... Args> void log(Args... args) {
 #endif
 	if (logFile.is_open()) {
 		logFile << message;
-	}
-	if (arcLogFileFunc) {
-		arcLogFileFunc(const_cast<char*>(message.c_str()));
 	}
 	if (arcLogWindowFunc) {
 		arcLogWindowFunc(const_cast<char*>(message.c_str()));
