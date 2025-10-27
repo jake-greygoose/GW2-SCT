@@ -209,12 +209,20 @@ void GW2_SCT::SkillIconManager::internalInit() {
 			std::regex matcher("X-Rate-Limit-Limit: ([0-9]+)");
 			std::vector<int> skillIdList;
 		try {
-			skillIdList = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
+			nlohmann::json skillListJson = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
 				auto foundHeader = headers.find("X-Rate-Limit-Limit");
 				if (foundHeader != headers.end()) {
 					requestsPerMinute = std::min(std::stoi(foundHeader->second), requestsPerMinute);
 				}
 			});
+			if (skillListJson.is_array()) {
+				skillIdList.reserve(skillListJson.size());
+				for (const auto& value : skillListJson) {
+					if (value.is_number_integer()) {
+						skillIdList.push_back(value.get<int>());
+					}
+				}
+			}
 		}
 		catch (const std::exception& e) {
 			static bool s_couldNotFetchSkillList = false;
@@ -328,6 +336,24 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 			}
 		}
 
+	std::string skillJsonFilename = getSCTPath() + "skill.json";
+	std::map<uint32_t, std::string> skillJsonValues;
+	if (file_exist(skillJsonFilename)) {
+		LOG("Loading skill.json");
+		std::string line, text;
+		std::ifstream in(skillJsonFilename);
+		while (std::getline(in, line)) {
+			text += line + "\n";
+		}
+		in.close();
+		try {
+			skillJsonValues = nlohmann::json::parse(text);
+		} catch (std::exception&) {
+			LOG("Error parsing skill.json");
+		}
+	} else {
+		LOG("Warning: could not find a skill.json");
+	}
 		std::regex renderAPIURLMatcher("/file/([A-Z0-9]+)/([0-9]+)\\.(png|jpg)");
 		while (keepLoadThreadRunning) {
 		if (requestedIDs->size() > 0) {
@@ -359,18 +385,18 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 					nlohmann::json possibleSkillInformationList;
 					try {
 						possibleSkillInformationList = getJSON("/v2/skills?ids=" + idStringToRequestFromApi);
-				} catch (const std::exception& e) {
-					static bool s_detailFetchWarned = false;
-					if (!s_detailFetchWarned) {
-						LOG("Skill icon detail fetch failed: ", e.what());
-						s_detailFetchWarned = true;
+					} catch (const std::exception& e) {
+						static bool s_detailFetchWarned = false;
+						if (!s_detailFetchWarned) {
+							LOG("Skill icon detail fetch failed: ", e.what());
+							s_detailFetchWarned = true;
+						}
+						for (auto& unresolvedSkillId : idListToRequestFromApi) {
+							requestedIDs->push_back(unresolvedSkillId);
+						}
+						std::this_thread::sleep_for(std::chrono::seconds(5));
+						continue;
 					}
-					for (auto& unresolvedSkillId : idListToRequestFromApi) {
-						requestedIDs->push_back(unresolvedSkillId);
-					}
-					std::this_thread::sleep_for(std::chrono::seconds(5));
-					continue;
-				}
 					if (possibleSkillInformationList.is_array()) {
 						std::vector<nlohmann::json> skillInformationList = possibleSkillInformationList;
 						for (auto& skillInformation : skillInformationList) {
