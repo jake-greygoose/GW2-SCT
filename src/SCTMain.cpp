@@ -384,16 +384,9 @@ uintptr_t GW2_SCT::SCTMain::UIUpdate() {
 	ExampleMessageOptions::paint();
 	Updater::DrawPopup();
 	if (Options::get()->sctEnabled) {
-		ImVec2 windowSize((float)windowWidth, (float)windowHeight);
-		ImGui::SetNextWindowPos(ImVec2(0, 0));
-		ImGui::SetNextWindowSize(windowSize);
-		ImGui::Begin("SCT", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBackground);
-
 		for (std::shared_ptr<ScrollArea> scrollArea : scrollAreas) {
 			scrollArea->paint();
 		}
-
-		ImGui::End();
 	}
 
 #if _DEBUG

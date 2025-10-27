@@ -304,7 +304,6 @@ bool GW2_SCT::ScrollArea::paintMessage(MessagePrerender& m, __int64 time, float 
 		}
 	}
 
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
     for (TemplateInterpreter::InterpretedText text : m.interpretedText) {
         ImVec2 curPos = ImVec2(pos.x + text.offset.x, pos.y + text.offset.y);
         if (text.icon == nullptr) {

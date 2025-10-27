@@ -417,8 +417,6 @@ void GW2_SCT::FontType::drawAtSize(std::string text, float fontSize, ImVec2 pos,
     }
     if (definitions.empty()) return;
 
-
-    ImDrawList* dl = ImGui::GetWindowDrawList();
     ImVec2 currentPos(pos.x - definitions.front().glyph->getLeftSideBearing(), pos.y);
 
     std::lock_guard lock(_allocatedAtlassesMutex);

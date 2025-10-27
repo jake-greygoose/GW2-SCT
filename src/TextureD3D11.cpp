@@ -121,7 +121,7 @@ GW2_SCT::ImmutableTextureD3D11::ImmutableTextureD3D11(int width, int height, uns
 
 void GW2_SCT::ImmutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 uvStart, ImVec2 uvEnd, ImU32 color) {
     if (_texture11View != nullptr) {
-        ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+        ImGui::GetForegroundDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
     }
     else {
         LOG("WARNING: Attempting to draw with null texture view");
@@ -152,7 +152,7 @@ void GW2_SCT::MutableTextureD3D11::internalDraw(ImVec2 pos, ImVec2 size, ImVec2 
         }
     }
     if (_texture11View != nullptr) {
-        ImGui::GetWindowDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
+        ImGui::GetForegroundDrawList()->AddImage(_texture11View, pos, ImVec2(pos.x + size.x, pos.y + size.y), uvStart, uvEnd, color);
     }
 }
 
