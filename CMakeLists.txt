@@ -31,6 +31,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/misc/cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/json/single_include/nlohmann"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/stb"
+  "${CMAKE_CURRENT_SOURCE_DIR}/submodules/object_threadsafe"
 )
 
 # Normalize optional DXSDK path once so includes/links stay consistent

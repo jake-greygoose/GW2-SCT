@@ -7,3 +7,6 @@
 [submodule "submodules/imgui"]
 	path = submodules/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "submodules/object_threadsafe"]
+	path = submodules/object_threadsafe
+	url = https://github.com/AlexeyAB/object_threadsafe
