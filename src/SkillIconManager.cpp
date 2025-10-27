@@ -1,10 +1,12 @@
 #include "httpclient.h"
 #include "SkillIconManager.h"
 #include <string>
+#include <stdexcept>
 #include <thread>
 #include <functional>
 #include <unordered_set>
 #include <regex>
+#include <cctype>
 #include "Common.h"
 #include "Options.h"
 #include "Profiles.h"
@@ -20,7 +22,7 @@ nlohmann::json getJSON(std::string url, std::function<void(std::map<std::string,
 	std::string response = HTTPClient::GetRequest(HTTPClient::StringToWString(fullUrl));
 	
 	if (response.empty()) {
-		throw std::exception(("Error sending GET request to " + fullUrl).c_str());
+		throw std::runtime_error(("Empty response from " + fullUrl).c_str());
 	}
 	
 	if (callback != nullptr) {
@@ -28,16 +30,25 @@ nlohmann::json getJSON(std::string url, std::function<void(std::map<std::string,
 		callback(emptyHeaders);
 	}
 	
+	// Detect HTML or other non-JSON payloads, e.g. API outage returning an error page
+	if (!response.empty()) {
+		std::string::const_iterator it = response.begin();
+		while (it != response.end() && std::isspace(static_cast<unsigned char>(*it))) { ++it; }
+		if (it == response.end() || *it == '<') {
+			throw std::runtime_error(("Non-JSON response from " + fullUrl).c_str());
+		}
+	}
+	
 	try {
 		return nlohmann::json::parse(response);
 	} catch (const nlohmann::json::parse_error& e) {
 		std::string errorMsg = "Invalid JSON response from " + fullUrl + ": " + std::string(e.what());
 		LOG("JSON parse error: ", errorMsg);
-		throw std::exception(errorMsg.c_str());
+		throw std::runtime_error(errorMsg);
 	} catch (const nlohmann::json::exception& e) {
 		std::string errorMsg = "JSON error from " + fullUrl + ": " + std::string(e.what());
 		LOG("JSON error: ", errorMsg);
-		throw std::exception(errorMsg.c_str());
+		throw std::runtime_error(errorMsg);
 	}
 }
 
@@ -188,35 +199,68 @@ void GW2_SCT::SkillIconManager::internalInit() {
     try {
         if (Options::get()->skillIconsEnabled) {
 			std::regex matcher("X-Rate-Limit-Limit: ([0-9]+)");
-			std::vector<int> skillIdList = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
+			std::vector<int> skillIdList;
+		try {
+			skillIdList = getJSON("/v2/skills", [](std::map<std::string, std::string> headers) {
 				auto foundHeader = headers.find("X-Rate-Limit-Limit");
 				if (foundHeader != headers.end()) {
 					requestsPerMinute = std::min(std::stoi(foundHeader->second), requestsPerMinute);
 				}
 			});
-			bool preload = Options::get()->preloadAllSkillIcons;
-            checkedIDs->clear();
-            embeddedIconIds->clear();
-            for (const auto& skillId: skillIdList) {
-                checkedIDs->insert({ skillId, false });
-                if (preload) {
-                    requestedIDs->push_back(skillId);
-                }
-            }
-            for (auto it : staticFiles) {
-                checkedIDs->insert({ it.first, false });
-                auto embedded = LoadEmbeddedSkillIcon((uint32_t)it.first);
-                if (embedded && !embedded->empty()) {
-                    (*checkedIDs)[it.first] = true;
-                    embeddedIconIds->insert(it.first);
-                    // Replace any existing icon
-                    auto existing = loadedIcons->find(it.first);
-                    if (existing != loadedIcons->end()) {
-                        existing->second = SkillIcon(embedded, (uint32_t)it.first);
-                    } else {
-                        loadedIcons->insert({ it.first, SkillIcon(embedded, (uint32_t)it.first) });
-                    }
-                }
+		}
+		catch (const std::exception& e) {
+			static bool s_couldNotFetchSkillList = false;
+			if (!s_couldNotFetchSkillList) {
+				LOG("Skill icon API unavailable, continuing with cached data: ", e.what());
+				s_couldNotFetchSkillList = true;
+			}
+		}
+		std::string skillJsonFilename = getSCTPath() + "skill.json";
+		std::map<uint32_t, std::string> skillJsonValues;
+		if (file_exist(skillJsonFilename)) {
+			LOG("Loading skill.json");
+			std::string line, textFile;
+			std::ifstream in(skillJsonFilename);
+			while (std::getline(in, line)) {
+				textFile += line + "\n";
+			}
+			in.close();
+			try {
+				skillJsonValues = nlohmann::json::parse(textFile);
+			} catch (std::exception&) {
+				LOG("Error parsing skill.json");
+			}
+		} else {
+			LOG("Warning: could not find a skill.json");
+		}
+		if (skillIdList.empty() && !skillJsonValues.empty()) {
+			for (const auto& entry : skillJsonValues) {
+				skillIdList.push_back(static_cast<int>(entry.first));
+			}
+		}
+		bool preload = Options::get()->preloadAllSkillIcons;
+		checkedIDs->clear();
+		embeddedIconIds->clear();
+		for (const auto& skillId : skillIdList) {
+			checkedIDs->insert({ skillId, false });
+			if (preload) {
+				requestedIDs->push_back(skillId);
+			}
+		}
+		for (auto it : staticFiles) {
+			checkedIDs->insert({ it.first, false });
+			auto embedded = LoadEmbeddedSkillIcon((uint32_t)it.first);
+			if (embedded && !embedded->empty()) {
+				(*checkedIDs)[it.first] = true;
+				embeddedIconIds->insert(it.first);
+				// Replace any existing icon
+				auto existing = loadedIcons->find(it.first);
+				if (existing != loadedIcons->end()) {
+					existing->second = SkillIcon(embedded, (uint32_t)it.first);
+				} else {
+					loadedIcons->insert({ it.first, SkillIcon(embedded, (uint32_t)it.first) });
+				}
+			}
             }
 
             spawnLoadThread();
@@ -276,25 +320,6 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 			}
 		}
 
-		std::string skillJsonFilename = getSCTPath() + "skill.json";
-		std::map<uint32_t,std::string> skillJsonValues;
-		if (file_exist(skillJsonFilename)) {
-			LOG("Loading skill.json");
-			std::string line, text;
-			std::ifstream in(skillJsonFilename);
-			while (std::getline(in, line)) {
-				text += line + "\n";
-			}
-			in.close();
-			try {
-				skillJsonValues = nlohmann::json::parse(text);
-			} catch (std::exception& e) {
-				LOG("Error parsing skill.json");
-			}
-		} else {
-			LOG("Warning: could not find a skill.json");
-		}
-
 		std::regex renderAPIURLMatcher("/file/([A-Z0-9]+)/([0-9]+)\\.(png|jpg)");
 		while (keepLoadThreadRunning) {
 		if (requestedIDs->size() > 0) {
@@ -323,7 +348,17 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 				std::string idStringToRequestFromApi = join(idListToRequestFromApi, ",");
 				try {
 					std::this_thread::sleep_for(std::chrono::milliseconds(60000 / requestsPerMinute));
-					nlohmann::json possibleSkillInformationList = getJSON("/v2/skills?ids=" + idStringToRequestFromApi);
+					nlohmann::json possibleSkillInformationList;
+					try {
+						possibleSkillInformationList = getJSON("/v2/skills?ids=" + idStringToRequestFromApi);
+					} catch (const std::exception& e) {
+						LOG("Skill icon detail fetch failed: ", e.what());
+						for (auto& unresolvedSkillId : idListToRequestFromApi) {
+							requestedIDs->push_back(unresolvedSkillId);
+						}
+						std::this_thread::sleep_for(std::chrono::seconds(5));
+						continue;
+					}
 					if (possibleSkillInformationList.is_array()) {
 						std::vector<nlohmann::json> skillInformationList = possibleSkillInformationList;
 						for (auto& skillInformation : skillInformationList) {
