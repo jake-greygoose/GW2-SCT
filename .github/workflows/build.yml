@@ -62,7 +62,7 @@ jobs:
             throw 'Missing GW2-SCT version output'
           }
           New-Item -ItemType Directory -Path dist -Force | Out-Null
-          $dest = Join-Path 'dist' "gw2-sct-$version.dll"
+          $dest = Join-Path 'dist' "gw2-sct.dll"
           Copy-Item $dll $dest -Force
           "package_path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           Write-Host "Packaged DLL => $dest"
