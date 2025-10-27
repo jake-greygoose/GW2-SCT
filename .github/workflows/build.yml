@@ -91,15 +91,19 @@ jobs:
           $base = 'https://git.gay/api/v1'
           $headers = @{ Authorization = "token $env:FORGEJO_TOKEN" }
           $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = "Automated mirror release from GitHub run $env:GITHUB_RUN_NUMBER." } | ConvertTo-Json -Compress
-          $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
-          $uploadUrl = $release.upload_url
-          if ($uploadUrl -match '\{.*\}') {
-            $uploadUrl = $uploadUrl.Split('{')[0]
+          try {
+            $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
+          } catch {
+            if ($_.Exception.Response.StatusCode.Value__ -eq 409) {
+              $release = Invoke-RestMethod -Method GET -Uri "$base/repos/$repo/releases/tags/$($env:VERSION)" -Headers $headers -ErrorAction Stop
+            } else { throw }
           }
+          if (-not $release.id) { throw 'Forgejo release id missing' }
           $fileName = Split-Path $env:PACKAGE_PATH -Leaf
-          $uploadUri = "$uploadUrl?name=$fileName"
+          $encodedName = [System.Web.HttpUtility]::UrlEncode($fileName)
+          $uploadUri = "$base/repos/$repo/releases/$($release.id)/assets?name=$encodedName"
           Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
-          Write-Host "Forgejo release created: $env:VERSION"
+          Write-Host "Forgejo release published: $env:VERSION"
 
       - name: Create GitHub Release
         if: github.event_name != 'pull_request'
