@@ -80,6 +80,11 @@ struct Updater::UpdateState {
 
 std::unique_ptr<Updater::UpdateState> Updater::s_state;
 
+static std::mutex& GetInitMutex() {
+    static std::mutex initMutex;
+    return initMutex;
+}
+
 static std::pair<std::string, std::string> ParseRepoSlug(const std::string& slug) {
     std::string owner = "jake-greygoose";
     std::string repo = "GW2-SCT";
@@ -311,8 +316,6 @@ static FetchResult FetchLatestRelease(const std::string& owner, const std::strin
             }
         }
 
-        LOG("Updater: Found release ", tag, " via ", ReleaseSourceLabel(source), ", asset=", chosenAssetUrl.empty() ? "<none>" : chosenAssetUrl.c_str());
-
         if (!haveCandidate || IsNewer(version, bestCandidate.version)) {
             bestCandidate.found = true;
             bestCandidate.version = version;
@@ -397,33 +400,45 @@ static void RestartGameNow() {
 
 void Updater::Init() {
     LOG("Updater: Init");
-    s_state = std::make_unique<UpdateState>();
-    ClearLeftoverFiles();
 
-    auto pathOpt = GetSelfPath();
-    if (!pathOpt) { LOG("Updater: GetSelfPath failed; skipping auto-check"); return; }
-    s_state->installPath = *pathOpt;
-    LOG("Updater: Install path: ", s_state->installPath);
+    std::lock_guard<std::mutex> initLock(GetInitMutex());
 
-    auto fileV = GetCurrentFileVersion(*pathOpt);
-    if (fileV) {
-        s_state->currentVersion = *fileV;
-        auto v = *fileV; LOG("Updater: Current file version: ", v[0], ".", v[1], ".", v[2], ".", v[3]);
+    if (!s_state) {
+        s_state = std::make_unique<UpdateState>();
+        ClearLeftoverFiles();
+
+        auto pathOpt = GetSelfPath();
+        if (!pathOpt) { LOG("Updater: GetSelfPath failed; skipping auto-check"); return; }
+        s_state->installPath = *pathOpt;
+        LOG("Updater: Install path: ", s_state->installPath);
+
+        auto fileV = GetCurrentFileVersion(*pathOpt);
+        if (fileV) {
+            s_state->currentVersion = *fileV;
+            auto v = *fileV; LOG("Updater: Current file version: ", v[0], ".", v[1], ".", v[2], ".", v[3]);
+        } else {
+            s_state->currentVersion = ParseVersionAny(SCT_VERSION_STRING);
+            auto v = *s_state->currentVersion; LOG("Updater: Current display version: ", v[0], ".", v[1], ".", v[2], ".", v[3]);
+        }
     } else {
-        s_state->currentVersion = ParseVersionAny(SCT_VERSION_STRING);
-        auto v = *s_state->currentVersion; LOG("Updater: Current display version: ", v[0], ".", v[1], ".", v[2], ".", v[3]);
+        LOG("Updater: Already initialized (likely by get_update_url)");
+        if (s_state->currentVersion.has_value()) {
+            auto v = *s_state->currentVersion;
+            LOG("Updater: Current version: ", v[0], ".", v[1], ".", v[2], ".", v[3]);
+        }
     }
 
     auto& opts = Options::getOptionsStruct();
-    bool enabled = true;
-    bool allowPre = false;
-    enabled = opts.updatesEnabled;
-    allowPre = opts.includePrerelease;
+    bool enabled = opts.updatesEnabled;
+    bool allowPre = opts.includePrerelease;
 
     LOG("Updater: Auto-check ", (enabled ? "enabled" : "disabled"), ", includePrerelease=", (allowPre ? "true" : "false"), ", repo=", opts.updateRepo);
-    if (enabled) {
+
+    if (enabled && s_state->status == UpdateState::Status::Unknown) {
         LOG("Updater: Queueing initial auto-check");
         CheckNow();
+    } else if (s_state->status == UpdateState::Status::UpdateAvailable) {
+        LOG("Updater: Update already detected (by get_update_url)");
     }
 }
 
@@ -592,13 +607,6 @@ void Updater::DrawPopup() {
         ImGui::TextColored(ImVec4(1,0,0,1), "%s", langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Header));
         ImGui::TextColored(ImVec4(1,0,0,1), langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Current), cur[0], cur[1], cur[2], cur[3]);
         ImGui::TextColored(ImVec4(0,1,0,1), langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Latest), nv[0], nv[1], nv[2], nv[3]);
-
-        if (st->loaderUpdateProvided) {
-            ImGui::Spacing();
-            ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "Auto-update via arcdps loader is in progress...");
-            ImGui::TextWrapped("If auto-update fails, you can manually update using the button below.");
-            ImGui::Spacing();
-        }
 
         if (!st->releasePageUrl.empty()) {
             if (ImGui::Button(langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Button_OpenRelease))) {
@@ -804,41 +812,76 @@ std::optional<std::string> Updater::GetSelfPath() {
 }
 
 const wchar_t* Updater::GetUpdateUrl() {
-    if (!s_state) return nullptr;
+    try {
+        std::lock_guard<std::mutex> initLock(GetInitMutex());
 
-    std::lock_guard<std::mutex> g(s_state->lock);
+        if (!s_state) {
+            s_state = std::make_unique<UpdateState>();
+            ClearLeftoverFiles();
 
-    // If we don't have an update available, return null
-    if (s_state->status != UpdateState::Status::UpdateAvailable) {
+            auto pathOpt = GetSelfPath();
+            if (!pathOpt) return nullptr;
+            s_state->installPath = *pathOpt;
+
+            auto fileV = GetCurrentFileVersion(*pathOpt);
+            if (fileV) {
+                s_state->currentVersion = *fileV;
+            } else {
+                s_state->currentVersion = ParseVersionAny(SCT_VERSION_STRING);
+            }
+        }
+
+        std::lock_guard<std::mutex> g(s_state->lock);
+
+        if (!s_state->currentVersion.has_value()) return nullptr;
+
+        if (s_state->status == UpdateState::Status::Unknown) {
+            LOG("Updater: Checking for updates (for arcdps loader hotload)");
+            const std::string defaultSlug = "jake-greygoose/GW2-SCT";
+            auto parsed = ParseRepoSlug(defaultSlug);
+            std::string owner = parsed.first;
+            std::string repo = parsed.second;
+
+            auto fetch = FetchLatestRelease(owner, repo, true, ReleaseSource::GitHub);
+
+            if (!fetch.found) {
+                auto fetchForgejo = FetchLatestRelease(owner, repo, true, ReleaseSource::Forgejo);
+                if (fetchForgejo.found) {
+                    fetch = fetchForgejo;
+                }
+            }
+
+            if (fetch.found && IsNewer(fetch.version, *s_state->currentVersion)) {
+                s_state->newVersion = fetch.version;
+                s_state->downloadUrl = fetch.assetUrl;
+                s_state->releasePageUrl = fetch.htmlUrl;
+                s_state->tagName = fetch.tagName;
+                s_state->status = UpdateState::Status::UpdateAvailable;
+            }
+        }
+
+        if (s_state->status != UpdateState::Status::UpdateAvailable) return nullptr;
+        if (s_state->loaderUpdateProvided) return nullptr;
+        if (s_state->downloadUrl.empty()) return nullptr;
+
+        if (s_state->downloadUrl.find("https://") != 0) {
+            LOG("Updater: Download URL is not HTTPS, cannot use loader auto-update");
+            return nullptr;
+        }
+
+        static std::wstring wideUrl;
+        wideUrl = HTTPClient::StringToWString(s_state->downloadUrl);
+        s_state->loaderUpdateProvided = true;
+
+        LOG("Updater: Providing update URL to arcdps loader: ", s_state->downloadUrl);
+        return wideUrl.c_str();
+    } catch (const std::exception& e) {
+        LOG("Updater: Exception in GetUpdateUrl: ", e.what());
+        return nullptr;
+    } catch (...) {
+        LOG("Updater: Unknown exception in GetUpdateUrl");
         return nullptr;
     }
-
-    // If we've already provided this update to the loader, don't provide it again
-    if (s_state->loaderUpdateProvided) {
-        return nullptr;
-    }
-
-    // If we don't have a download URL, can't provide update
-    if (s_state->downloadUrl.empty()) {
-        return nullptr;
-    }
-
-    // Only support HTTPS URLs (loader requirement: 443/HTTPS only)
-    if (s_state->downloadUrl.find("https://") != 0) {
-        LOG("Updater: Download URL is not HTTPS, cannot use loader auto-update");
-        return nullptr;
-    }
-
-    // Convert to wchar_t* and return
-    // Need to store this in a static variable so it remains valid after return
-    static std::wstring wideUrl;
-    wideUrl = HTTPClient::StringToWString(s_state->downloadUrl);
-
-    // Mark that we've provided this update to the loader
-    s_state->loaderUpdateProvided = true;
-
-    LOG("Updater: Providing update URL to arcdps loader: ", s_state->downloadUrl);
-    return wideUrl.c_str();
 }
 
 } // namespace GW2_SCT

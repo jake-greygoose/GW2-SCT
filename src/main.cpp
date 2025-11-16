@@ -81,7 +81,9 @@ extern "C" __declspec(dllexport) void* get_release_addr() {
 	return mod_release;
 }
 
-/* export -- arcdps looks for this exported function to check for updates */
+/* export -- arcdps looks for this exported function to check for updates
+   expected for the extension to check for an update, and to return null, or a wchar_t* string, eg. www.mydomain.com/myfile.dll (443/HTTPS only).
+   if a string is returned the module is freelibrary'd, replaced with the file from url, and re-loaded. */
 extern "C" __declspec(dllexport) const wchar_t* get_update_url() {
 	return GW2_SCT::Updater::GetUpdateUrl();
 }
