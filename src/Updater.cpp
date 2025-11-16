@@ -71,6 +71,7 @@ struct Updater::UpdateState {
     bool lastCheckHadError = false;
     bool lastCheckRateLimited = false;
     bool lastCheckFoundUpdate = false;
+    bool loaderUpdateProvided = false;
 
     ~UpdateState() {
         for (auto &t : tasks) { if (t.joinable()) t.join(); }
@@ -592,6 +593,13 @@ void Updater::DrawPopup() {
         ImGui::TextColored(ImVec4(1,0,0,1), langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Current), cur[0], cur[1], cur[2], cur[3]);
         ImGui::TextColored(ImVec4(0,1,0,1), langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Latest), nv[0], nv[1], nv[2], nv[3]);
 
+        if (st->loaderUpdateProvided) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "Auto-update via arcdps loader is in progress...");
+            ImGui::TextWrapped("If auto-update fails, you can manually update using the button below.");
+            ImGui::Spacing();
+        }
+
         if (!st->releasePageUrl.empty()) {
             if (ImGui::Button(langString(LanguageCategory::Option_UI, LanguageKey::Update_Popup_Button_OpenRelease))) {
                 std::string url = st->releasePageUrl;
@@ -793,6 +801,44 @@ std::optional<std::string> Updater::GetSelfPath() {
     }
     if (GetModuleFileNameA(hm, path, MAX_PATH) == 0) return std::nullopt;
     return std::string(path);
+}
+
+const wchar_t* Updater::GetUpdateUrl() {
+    if (!s_state) return nullptr;
+
+    std::lock_guard<std::mutex> g(s_state->lock);
+
+    // If we don't have an update available, return null
+    if (s_state->status != UpdateState::Status::UpdateAvailable) {
+        return nullptr;
+    }
+
+    // If we've already provided this update to the loader, don't provide it again
+    if (s_state->loaderUpdateProvided) {
+        return nullptr;
+    }
+
+    // If we don't have a download URL, can't provide update
+    if (s_state->downloadUrl.empty()) {
+        return nullptr;
+    }
+
+    // Only support HTTPS URLs (loader requirement: 443/HTTPS only)
+    if (s_state->downloadUrl.find("https://") != 0) {
+        LOG("Updater: Download URL is not HTTPS, cannot use loader auto-update");
+        return nullptr;
+    }
+
+    // Convert to wchar_t* and return
+    // Need to store this in a static variable so it remains valid after return
+    static std::wstring wideUrl;
+    wideUrl = HTTPClient::StringToWString(s_state->downloadUrl);
+
+    // Mark that we've provided this update to the loader
+    s_state->loaderUpdateProvided = true;
+
+    LOG("Updater: Providing update URL to arcdps loader: ", s_state->downloadUrl);
+    return wideUrl.c_str();
 }
 
 } // namespace GW2_SCT

@@ -12,6 +12,7 @@
 #include <iostream>
 #include "Language.h"
 #include "imgui_sct_widgets.h"
+#include "Updater.h"
 
 #pragma comment(lib, "d3d11")
 
@@ -22,6 +23,7 @@ void dll_init(HANDLE hModule);
 void dll_exit();
 extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t d3dversion);
 extern "C" __declspec(dllexport) void* get_release_addr();
+extern "C" __declspec(dllexport) const wchar_t* get_update_url();
 arcdps_exports* mod_init();
 uintptr_t mod_release();
 uintptr_t mod_wnd(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -77,6 +79,11 @@ extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiCont
 extern "C" __declspec(dllexport) void* get_release_addr() {
 	arcvers = 0;
 	return mod_release;
+}
+
+/* export -- arcdps looks for this exported function to check for updates */
+extern "C" __declspec(dllexport) const wchar_t* get_update_url() {
+	return GW2_SCT::Updater::GetUpdateUrl();
 }
 
 arcdps_exports* mod_init() {

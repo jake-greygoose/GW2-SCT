@@ -14,6 +14,7 @@ public:
     static void DrawPopup();
     static void DrawSettingsInline();
     static void CheckNow(bool useBackupOnly = false);
+    static const wchar_t* GetUpdateUrl();
 
 private:
     struct UpdateState;
