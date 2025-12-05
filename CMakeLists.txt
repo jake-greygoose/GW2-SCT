@@ -36,6 +36,12 @@ target_include_directories(${TARGET_NAME} PRIVATE
 
 if(MSVC)
   target_compile_options(${TARGET_NAME} PRIVATE "/Zc:preprocessor" "/MP")
+  # Ensure Release builds also emit Program Database files for symbol distribution
+  target_compile_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
+  target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/DEBUG:FULL>")
+  set_target_properties(${TARGET_NAME} PROPERTIES
+    PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/Release"
+    COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/Release")
 endif()
 
 # ---- Embed display version into addon from CMake/BAT (SCT_VERSION_STRING) ----
