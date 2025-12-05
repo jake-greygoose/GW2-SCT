@@ -17,6 +17,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
+          fetch-tags: true
 
 
       - name: Seed build version
@@ -94,6 +96,39 @@ jobs:
           Write-Host "Packaged release artifacts => release_package"
         shell: pwsh
 
+      - name: Determine previous tag
+        id: changelog
+        run: |
+          git fetch --tags --force | Out-Null
+          $currentTag = '${{ steps.version.outputs.tag }}'
+          if (-not $currentTag) {
+            throw 'Missing current tag output'
+          }
+          $tags = git tag --sort=-creatordate
+          $previous = $null
+          foreach ($tag in $tags) {
+            if ($tag -ne $currentTag) {
+              $previous = $tag
+              break
+            }
+          }
+          if ($previous) {
+            $githubCompare = "https://github.com/jake-greygoose/GW2-SCT/compare/$previous...$currentTag"
+            $forgejoCompare = "https://git.gay/jake-greygoose/GW2-SCT/compare/$previous...$currentTag"
+            $githubLine = "Full Changelog: [$previous...$currentTag]($githubCompare)"
+            $forgejoLine = "Full Changelog: [$previous...$currentTag]($forgejoCompare)"
+            "previous_tag=$previous" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "full_changelog_line_github=$githubLine" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "full_changelog_line_forgejo=$forgejoLine" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Previous tag detected: $previous"
+          } else {
+            "previous_tag=" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "full_changelog_line_github=" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "full_changelog_line_forgejo=" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "No previous tag found; skipping changelog compare line"
+          }
+        shell: pwsh
+
       - name: Upload Release DLL artifact
         uses: actions/upload-artifact@v4
         with:
@@ -109,6 +144,7 @@ jobs:
           PACKAGE_DLL: ${{ steps.package.outputs.dll_path }}
           PACKAGE_PDB: ${{ steps.package.outputs.pdb_path }}
           PACKAGE_MD5: ${{ steps.package.outputs.md5_path }}
+          CHANGELOG_LINE: ${{ steps.changelog.outputs.full_changelog_line_forgejo }}
         shell: pwsh
         run: |
           if (-not $env:FORGEJO_TOKEN) {
@@ -118,7 +154,11 @@ jobs:
           $repo = 'jake-greygoose/GW2-SCT'
           $base = 'https://git.gay/api/v1'
           $headers = @{ Authorization = "token $env:FORGEJO_TOKEN" }
-          $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = "Automated mirror release from GitHub run $env:GITHUB_RUN_NUMBER." } | ConvertTo-Json -Compress
+          $body = "Automated mirror release from GitHub run $env:GITHUB_RUN_NUMBER."
+          if ($env:CHANGELOG_LINE) {
+            $body = "$body`n`n$env:CHANGELOG_LINE"
+          }
+          $json = @{ tag_name = $env:VERSION; name = $env:VERSION; body = $body } | ConvertTo-Json -Compress
           try {
             $release = Invoke-RestMethod -Method POST -Uri "$base/repos/$repo/releases" -Headers $headers -ContentType 'application/json' -Body $json -ErrorAction Stop
           } catch {
@@ -148,6 +188,7 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           body: |
             Version: ${{ steps.version.outputs.version }}
+            ${{ steps.changelog.outputs.full_changelog_line_github }}
           files: |
             ${{ steps.package.outputs.dll_path_posix }}
             ${{ steps.package.outputs.pdb_path_posix }}
