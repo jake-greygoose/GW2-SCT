@@ -58,30 +58,47 @@ jobs:
         run: cmake --build out/build-ci --config Debug --parallel
         shell: pwsh
 
-      - name: Package Release DLL
+      - name: Package Release artifacts
         id: package
         run: |
           $dll = Join-Path 'out/build-ci/Release' 'gw2-sct.dll'
           if (-not (Test-Path $dll)) {
             throw "Release DLL not found at $dll"
           }
+          $pdb = Join-Path 'out/build-ci/Release' 'gw2-sct.pdb'
+          if (-not (Test-Path $pdb)) {
+            throw "Release PDB not found at $pdb"
+          }
           $version = '${{ steps.version.outputs.version }}'
           if (-not $version) {
             throw 'Missing GW2-SCT version output'
           }
           New-Item -ItemType Directory -Path release_package -Force | Out-Null
-          $dest = Join-Path 'release_package' "gw2-sct.dll"
-          Copy-Item $dll $dest -Force
-          "package_path=$dest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "package_path_posix=release_package/gw2-sct.dll" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          Write-Host "Packaged DLL => $dest"
+          $dllDest = Join-Path 'release_package' 'gw2-sct.dll'
+          $pdbDest = Join-Path 'release_package' 'gw2-sct.pdb'
+          Copy-Item $dll $dllDest -Force
+          Copy-Item $pdb $pdbDest -Force
+          $hash = Get-FileHash -Path $dllDest -Algorithm MD5
+          $md5Dest = Join-Path 'release_package' 'gw2-sct.dll.md5'
+          Set-Content -Path $md5Dest -Value ($hash.Hash.ToLowerInvariant()) -Encoding ascii
+          $dllResolved = (Resolve-Path $dllDest).Path
+          $pdbResolved = (Resolve-Path $pdbDest).Path
+          $md5Resolved = (Resolve-Path $md5Dest).Path
+          "package_dir=release_package" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "dll_path=$dllResolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "pdb_path=$pdbResolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "md5_path=$md5Resolved" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "dll_path_posix=release_package/gw2-sct.dll" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "pdb_path_posix=release_package/gw2-sct.pdb" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "md5_path_posix=release_package/gw2-sct.dll.md5" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Packaged release artifacts => release_package"
         shell: pwsh
 
       - name: Upload Release DLL artifact
         uses: actions/upload-artifact@v4
         with:
           name: gw2-sct-${{ steps.version.outputs.version }}
-          path: ${{ steps.package.outputs.package_path }}
+          path: ${{ steps.package.outputs.package_dir }}
 
 
       - name: Create Forgejo release
@@ -89,7 +106,9 @@ jobs:
         env:
           FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
-          PACKAGE_PATH: ${{ steps.package.outputs.package_path }}
+          PACKAGE_DLL: ${{ steps.package.outputs.dll_path }}
+          PACKAGE_PDB: ${{ steps.package.outputs.pdb_path }}
+          PACKAGE_MD5: ${{ steps.package.outputs.md5_path }}
         shell: pwsh
         run: |
           if (-not $env:FORGEJO_TOKEN) {
@@ -108,10 +127,17 @@ jobs:
             } else { throw }
           }
           if (-not $release.id) { throw 'Forgejo release id missing' }
-          $fileName = Split-Path $env:PACKAGE_PATH -Leaf
-          $encodedName = [System.Web.HttpUtility]::UrlEncode($fileName)
-          $uploadUri = "$base/repos/$repo/releases/$($release.id)/assets?name=$encodedName"
-          Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $env:PACKAGE_PATH -ContentType 'application/octet-stream' -ErrorAction Stop
+          $packageFiles = @($env:PACKAGE_DLL, $env:PACKAGE_PDB, $env:PACKAGE_MD5) | Where-Object { $_ -and (Test-Path $_) }
+          if (-not $packageFiles -or $packageFiles.Count -eq 0) {
+            throw 'No release files found to upload to Forgejo'
+          }
+          foreach ($file in $packageFiles) {
+            $fileName = Split-Path $file -Leaf
+            $encodedName = [System.Web.HttpUtility]::UrlEncode($fileName)
+            $uploadUri = "$base/repos/$repo/releases/$($release.id)/assets?name=$encodedName"
+            Invoke-RestMethod -Method POST -Uri $uploadUri -Headers $headers -InFile $file -ContentType 'application/octet-stream' -ErrorAction Stop
+            Write-Host "Uploaded $fileName to Forgejo release $($env:VERSION)"
+          }
           Write-Host "Forgejo release published: $env:VERSION"
 
       - name: Create GitHub Release
@@ -122,5 +148,8 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           body: |
             Version: ${{ steps.version.outputs.version }}
-          files: ${{ steps.package.outputs.package_path_posix }}
+          files: |
+            ${{ steps.package.outputs.dll_path_posix }}
+            ${{ steps.package.outputs.pdb_path_posix }}
+            ${{ steps.package.outputs.md5_path_posix }}
           token: ${{ secrets.PERSONAL_GITHUB_TOKEN || github.token }}
