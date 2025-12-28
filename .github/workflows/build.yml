@@ -56,9 +56,9 @@ jobs:
         id: version
         run: |
           $cache = Get-Content out/build-ci/CMakeCache.txt
-          $line = $cache | Where-Object { $_ -match '^GW2SCT_VERSION_STRING:STRING=(.+)$' } | Select-Object -First 1
+          $line = $cache | Where-Object { $_ -match '^GW2SCT_VERSION_STRING_RAW:STRING=(.+)$' } | Select-Object -First 1
           if (-not $line) {
-            throw 'GW2SCT_VERSION_STRING not found in CMakeCache.txt'
+            throw 'GW2SCT_VERSION_STRING_RAW not found in CMakeCache.txt'
           }
           $version = $Matches[1]
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append

@@ -14,11 +14,11 @@ inline constexpr unsigned Version[4] = {
     VersionRevision
 };
 
-inline constexpr char VersionString[] = "@GW2SCT_VERSION_STRING@";
+inline constexpr char VersionString[] = "@GW2SCT_VERSION_STRING_RAW@";
 
 } // namespace GW2_SCT::BuildInfo
 
 #ifdef SCT_VERSION_STRING
 #undef SCT_VERSION_STRING
 #endif
-#define SCT_VERSION_STRING "@GW2SCT_VERSION_STRING@"
+#define SCT_VERSION_STRING "@GW2SCT_VERSION_STRING_RAW@"
