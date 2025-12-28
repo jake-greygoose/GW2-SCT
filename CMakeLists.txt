@@ -129,7 +129,10 @@ if(MSVC)
   target_compile_options(${TARGET_NAME} PRIVATE "/Zc:preprocessor" "/MP")
   # Ensure Release builds also emit Program Database files for symbol distribution
   target_compile_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/Zi>")
-  target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/DEBUG:FULL>")
+  target_link_options(${TARGET_NAME} PRIVATE
+    "$<$<CONFIG:Release>:/DEBUG:FULL>"
+    "$<$<CONFIG:Release>:/OPT:REF>"
+    "$<$<CONFIG:Release>:/OPT:ICF>")
   set_target_properties(${TARGET_NAME} PROPERTIES
     PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/Release"
     COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/Release")
