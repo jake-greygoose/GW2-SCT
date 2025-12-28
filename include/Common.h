@@ -7,45 +7,6 @@
 #define langString(SECTION, KEY) GW2_SCT::Language::get(SECTION, KEY)
 #define langStringImguiSafe(SECTION, KEY) GW2_SCT::Language::get(SECTION, KEY, true)
 
-#define CONCAT_FOR_EVAL(a, ...) a ## __VA_ARGS__
-#define CONCAT_WITHOUT_EVAL(a, ...) CONCAT_FOR_EVAL(a, __VA_ARGS__)
-
-#define IIF_0(t, ...) __VA_ARGS__
-#define IIF_1(t, ...) t
-#define IIF(cond) CONCAT_FOR_EVAL(IIF_, cond)
-
-#define GET_PARAM_1(n, ...) n
-#define GET_PARAM_2(x, n, ...) n
-#define GET_PARAM_3(x, y, n, ...) n
-
-#define GET_PARAM_1_OR_ZERO(...) GET_PARAM_1(__VA_ARGS__, 0,)
-#define GET_PARAM_2_OR_ZERO(...) GET_PARAM_2(__VA_ARGS__, 0,)
-#define GET_PARAM_3_OR_ZERO(...) GET_PARAM_3(__VA_ARGS__, 0, 0,)
-
-#define PROBE(x) x, 1,
-#define IS_PAREN_PROBE(...) PROBE(~)
-#define IS_PAREN(x) GET_PARAM_2_OR_ZERO(IS_PAREN_PROBE x)
-
-#define NOT_ZERO(x) GET_PARAM_2_OR_ZERO(CONCAT_WITHOUT_EVAL(NOT_ZERO_, CONCAT_WITHOUT_EVAL(x, _)))
-#define NOT_ZERO__ PROBE(~)
-#define NOT_ZERO_0_ PROBE(~)
-
-#define COMPL(b) CONCAT_FOR_EVAL(COMPL_, b)
-#define COMPL_0 1
-#define COMPL_1 0
-
-#define GET_BOOL(x) COMPL(NOT_ZERO(x))
-
-#define TYPE_HAS_NAMESPACE(Type) IIF(IS_PAREN(Type))(GET_BOOL(GET_PARAM_2_OR_ZERO Type), 0)
-#define TYPE_HAS_TEMPLATE(Type) IIF(IS_PAREN(Type))(GET_BOOL(GET_PARAM_3_OR_ZERO Type), 0)
-
-#define TYPE_ONLY_NAMESPACE(Type) IIF(TYPE_HAS_NAMESPACE(Type))(GET_PARAM_2_OR_ZERO Type::,)
-#define TYPE_ONLY_NAMESPACE_NAME(Type) IIF(TYPE_HAS_NAMESPACE(Type))(GET_PARAM_2_OR_ZERO Type,)
-#define TYPE_ONLY_NAME(Type) IIF(IS_PAREN(Type))(GET_PARAM_1 Type, Type)
-#define TYPE_ONLY_TEMPLATE(Type) IIF(TYPE_HAS_TEMPLATE(Type))(<GET_PARAM_3_OR_ZERO Type>,)
-#define TYPE_ONLY_TEMPLATE_NAME(Type) IIF(TYPE_HAS_TEMPLATE(Type))(GET_PARAM_3_OR_ZERO Type,)
-#define TYPE_FULL_NAME(Type) TYPE_ONLY_NAMESPACE(Type)TYPE_ONLY_NAME(Type)TYPE_ONLY_TEMPLATE(Type)
-
 #include <Windows.h>
 #include <string>
 #include <map>

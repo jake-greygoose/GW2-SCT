@@ -1,6 +1,7 @@
 #include "Common.h"
 #include "Language.h"
 #include <fstream>
+#include <filesystem>
 
 #ifdef _DEBUG
 HANDLE debug_console_hnd;
@@ -13,7 +14,8 @@ IDXGISwapChain* GW2_SCT::d3d11SwapChain;
 std::ofstream logFile;
 size_t (*arcLogWindowFunc)(char*) = nullptr;
 char* arcvers;
-bool ensuredSCTDirectoryExists = false;
+
+namespace fs = std::filesystem;
 
 void SetArcDpsLogFunctions(size_t (*logWindowFn)(char*)) {
 	arcLogWindowFunc = logWindowFn;
@@ -30,49 +32,43 @@ std::string getExePath() {
 }
 
 std::string getSCTPath() {
-	std::string addonPath = getExePath() + "\\addons\\sct\\";
-	if (!ensuredSCTDirectoryExists) {
-		std::string addonPath = getExePath() + "\\addons\\";
-		CreateDirectory(addonPath.c_str(), NULL);
-		addonPath += "sct\\";
-		CreateDirectory(addonPath.c_str(), NULL);
-		ensuredSCTDirectoryExists = true;
+	auto sctDir = fs::path(getExePath()) / "addons" / "sct";
+	std::error_code ec;
+	if (fs::create_directories(sctDir, ec)) {
 		LOG("Created SCT addon dir.");
+	} else if (ec) {
+		LOG("Failed to create SCT addon dir: ", ec.message());
 	}
-	return addonPath;
+
+	auto result = sctDir.string();
+	if (!result.empty() && result.back() != '\\' && result.back() != '/') {
+		result.push_back('\\');
+	}
+	return result;
 }
 
 bool file_exist(const std::string& name) {
-	struct stat buffer;
-	return (stat(name.c_str(), &buffer) == 0);
+	std::error_code ec;
+	return fs::exists(fs::path(name), ec);
 }
 
 bool getFilesInDirectory(std::string path, std::vector<std::string>& files) {
-	HANDLE hFind = INVALID_HANDLE_VALUE;
-	WIN32_FIND_DATA ffd;
-	std::string spec;
-
-	spec = path + "*";
-
-	hFind = FindFirstFile(spec.c_str(), &ffd);
-	if (hFind == INVALID_HANDLE_VALUE) {
+	std::error_code ec;
+	fs::path dirPath(path);
+	if (!fs::exists(dirPath, ec) || !fs::is_directory(dirPath, ec)) {
 		return false;
 	}
 
-	do {
-		if (strcmp(ffd.cFileName, ".") != 0 &&
-			strcmp(ffd.cFileName, "..") != 0) {
-			files.push_back(ffd.cFileName);
+	for (const auto& entry : fs::directory_iterator(dirPath, ec)) {
+		if (ec) {
+			return false;
 		}
-	} while (FindNextFile(hFind, &ffd) != 0);
-
-	if (GetLastError() != ERROR_NO_MORE_FILES) {
-		FindClose(hFind);
-		return false;
+		auto name = entry.path().filename().string();
+		if (name == "." || name == "..") {
+			continue;
+		}
+		files.push_back(name);
 	}
-
-	FindClose(hFind);
-	hFind = INVALID_HANDLE_VALUE;
 
 	return true;
 }
