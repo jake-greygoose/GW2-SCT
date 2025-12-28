@@ -7,12 +7,10 @@
 #include <sstream>
 #include <iterator>
 #include <vector>
+#include <algorithm>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-
-#define min(a,b) a <= b ? a : b
-#define max(a,b) a >= b ? a : b
 
 #define FONT_TEXTURE_SIZE 1024
 
@@ -99,7 +97,7 @@ unsigned char* GW2_SCT::Glyph::getBitmap() {
 
 float GW2_SCT::Glyph::getAdvanceAndKerning(int nextCodepoint) {
     float realAdvanceAndKerning = getRealAdvanceAndKerning(nextCodepoint);
-    if (nextCodepoint == 0) return max(_width + _lsb, realAdvanceAndKerning);
+    if (nextCodepoint == 0) return std::max(_width + _lsb, realAdvanceAndKerning);
     else return realAdvanceAndKerning;
 }
 
