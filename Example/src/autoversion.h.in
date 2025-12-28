@@ -1,8 +1,0 @@
-#pragma once
-
-inline void SeedAddonVersionFromBuild(AddonDefinition_t& def) {
-    def.Version.Major = @VER_MAJOR@;
-    def.Version.Minor = @VER_MINOR@;
-    def.Version.Build = @VER_BUILD@;
-    def.Version.Revision = @VER_REVISION@;
-}
