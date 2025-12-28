@@ -42,8 +42,11 @@ Debug
 Release
 RelWithDebInfo
 *.bat
+!build_gw2sct*.bat
 *.sln
 cmake_install.cmake
 *.log
 *.md
 /src/Options.tmp
+/out/
+/dist/

@@ -1,0 +1,24 @@
+#pragma once
+
+namespace GW2_SCT::BuildInfo {
+
+inline constexpr unsigned VersionMajor = @VER_MAJOR@;
+inline constexpr unsigned VersionMinor = @VER_MINOR@;
+inline constexpr unsigned VersionBuild = @VER_BUILD@;
+inline constexpr unsigned VersionRevision = @VER_REVISION@;
+
+inline constexpr unsigned Version[4] = {
+    VersionMajor,
+    VersionMinor,
+    VersionBuild,
+    VersionRevision
+};
+
+inline constexpr char VersionString[] = "@GW2SCT_VERSION_STRING@";
+
+} // namespace GW2_SCT::BuildInfo
+
+#ifdef SCT_VERSION_STRING
+#undef SCT_VERSION_STRING
+#endif
+#define SCT_VERSION_STRING "@GW2SCT_VERSION_STRING@"

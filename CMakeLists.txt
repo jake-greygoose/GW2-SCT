@@ -3,11 +3,97 @@ cmake_minimum_required(VERSION 3.20)
 project(gw2-sct LANGUAGES C CXX)
 set(TARGET_NAME gw2-sct)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(GW2SCTVersion)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
 
-gw2sct_seed_version(GW2SCT_VERSION_STRING)
-gw2sct_log_version(GW2SCT_VERSION_STRING)
+function(gw2sct_pad VALUE WIDTH OUTPUT_VAR)
+    set(_val "${VALUE}")
+    string(LENGTH "${_val}" _len)
+    set(_width "${WIDTH}")
+    while(_len LESS _width)
+        set(_val "0${_val}")
+        math(EXPR _len "${_len} + 1")
+    endwhile()
+    set(${OUTPUT_VAR} "${_val}" PARENT_SCOPE)
+endfunction()
+
+set(_VERSION_PART_NAMES VER_MAJOR VER_MINOR VER_BUILD VER_REVISION)
+set(_GW2SCT_VERSION_INPUT "")
+if(DEFINED GW2SCT_VERSION_STRING AND NOT "${GW2SCT_VERSION_STRING}" STREQUAL "")
+    set(_GW2SCT_VERSION_INPUT "${GW2SCT_VERSION_STRING}")
+elseif(NOT "$ENV{GW2SCT_VERSION_STRING}" STREQUAL "")
+    set(_GW2SCT_VERSION_INPUT "$ENV{GW2SCT_VERSION_STRING}")
+endif()
+
+if(_GW2SCT_VERSION_INPUT STREQUAL "")
+    string(TIMESTAMP CURRENT_YEAR "%Y")
+    string(TIMESTAMP CURRENT_MONTH "%m")
+    string(TIMESTAMP CURRENT_DAY "%d")
+    string(TIMESTAMP CURRENT_HOUR "%H")
+    string(TIMESTAMP CURRENT_MINUTE "%M")
+
+    math(EXPR VER_MAJOR "${CURRENT_YEAR}")
+    math(EXPR VER_MINOR "${CURRENT_MONTH}")
+    math(EXPR VER_BUILD "${CURRENT_DAY}")
+
+    set(_REV_SEED "")
+    foreach(_candidate "${GW2SCT_BUILD_NUMBER}" "$ENV{GW2SCT_BUILD_NUMBER}" "$ENV{GITHUB_RUN_NUMBER}" "$ENV{BUILD_BUILDNUMBER}" "$ENV{BUILD_NUMBER}")
+        if(NOT "${_candidate}" STREQUAL "")
+            set(_REV_SEED "${_candidate}")
+            break()
+        endif()
+    endforeach()
+    if(_REV_SEED STREQUAL "")
+        math(EXPR _REV_SEED "(${CURRENT_HOUR} * 60) + ${CURRENT_MINUTE}")
+    endif()
+    math(EXPR VER_REVISION "${_REV_SEED}")
+else()
+    string(REGEX REPLACE "^[Vv]" "" _GW2SCT_VERSION_INPUT "${_GW2SCT_VERSION_INPUT}")
+    string(REPLACE "." ";" VERSION_LIST "${_GW2SCT_VERSION_INPUT}")
+    list(LENGTH VERSION_LIST VERSION_PART_COUNT)
+    if(NOT VERSION_PART_COUNT EQUAL 4)
+        message(FATAL_ERROR "GW2SCT_VERSION_STRING must be in the form YYYY.MM.DD.RRRR")
+    endif()
+
+    foreach(index RANGE 0 3)
+        list(GET VERSION_LIST ${index} component)
+        if(NOT component MATCHES "^[0-9]+$")
+            message(FATAL_ERROR "Version component '${component}' is not numeric.")
+        endif()
+        string(REGEX REPLACE "^0*([0-9][0-9]*)$" "\\1" stripped "${component}")
+        if(stripped STREQUAL "")
+            set(stripped 0)
+        endif()
+        list(GET _VERSION_PART_NAMES ${index} component_name)
+        set(${component_name} ${stripped})
+    endforeach()
+endif()
+
+gw2sct_pad("${VER_MINOR}" 2 VER_MINOR_PAD)
+gw2sct_pad("${VER_BUILD}" 2 VER_BUILD_PAD)
+gw2sct_pad("${VER_REVISION}" 4 VER_REVISION_PAD)
+set(GW2SCT_VERSION_STRING "${VER_MAJOR}.${VER_MINOR_PAD}.${VER_BUILD_PAD}.${VER_REVISION_PAD}")
+set(GW2SCT_VERSION_CSV "${VER_MAJOR},${VER_MINOR},${VER_BUILD},${VER_REVISION}")
+message(STATUS "Configuring GW2-SCT Version: ${GW2SCT_VERSION_STRING}")
+set(GW2SCT_VERSION_STRING "${GW2SCT_VERSION_STRING}" CACHE STRING "Display version string shown by addon" FORCE)
+
+set(AUTOVERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/autoversion.h")
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/autoversion.h.in"
+    "${AUTOVERSION_HEADER}"
+    @ONLY
+)
+
+set(AUTOVERSION_RC "")
+if(WIN32)
+    set(AUTOVERSION_RC "${CMAKE_CURRENT_BINARY_DIR}/autoversion.rc")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/autoversion.rc.in"
+        "${AUTOVERSION_RC}"
+        @ONLY
+    )
+endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
@@ -21,11 +107,15 @@ file(GLOB IMGUI_SOURCES
 list(APPEND SOURCES ${IMGUI_SOURCES})
 
 add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS} "include/SkillFilterStructures.h" "include/Mumblelink.h" "src/Mumblelink.cpp")
+if(AUTOVERSION_RC)
+  target_sources(${TARGET_NAME} PRIVATE "${AUTOVERSION_RC}")
+endif()
 target_link_libraries(${TARGET_NAME} PRIVATE version)
 target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
 
 target_compile_definitions(${TARGET_NAME} PRIVATE NOMINMAX)
 target_include_directories(${TARGET_NAME} PRIVATE
+  "${CMAKE_CURRENT_BINARY_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/include"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui"
   "${CMAKE_CURRENT_SOURCE_DIR}/submodules/imgui/misc/cpp"
@@ -43,38 +133,8 @@ if(MSVC)
     COMPILE_PDB_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/Release")
 endif()
 
-# ---- Embed display version into addon from CMake/BAT (SCT_VERSION_STRING) ----
-set(GW2SCT_VERSION_STRING "${GW2SCT_VERSION_STRING}" CACHE STRING "Display version string shown by addon" FORCE)
-target_compile_definitions(${TARGET_NAME} PRIVATE SCT_VERSION_STRING=\"${GW2SCT_VERSION_STRING}\")
-
 # ---- Windows VERSIONINFO resource for DLL file properties ----
 if(WIN32)
-  # Numeric file version seed, e.g., 2025.8.19.826; if not provided, derive from display string
-  if(NOT GW2SCT_FILE_VERSION)
-    set(GW2SCT_FILE_VERSION "${GW2SCT_VERSION_STRING}")
-  endif()
-  string(REGEX REPLACE "^v" "" GW2SCT_FILE_VERSION "${GW2SCT_FILE_VERSION}")
-  # Split into up to 4 components
-  string(REPLACE "." ";" _ver_list "${GW2SCT_FILE_VERSION}")
-  set(GW2SCT_VER_MAJOR 0)
-  set(GW2SCT_VER_MINOR 0)
-  set(GW2SCT_VER_PATCH 0)
-  set(GW2SCT_VER_BUILD 0)
-  list(LENGTH _ver_list _ver_len)
-  if(_ver_len GREATER 0)
-    list(GET _ver_list 0 GW2SCT_VER_MAJOR)
-  endif()
-  if(_ver_len GREATER 1)
-    list(GET _ver_list 1 GW2SCT_VER_MINOR)
-  endif()
-  if(_ver_len GREATER 2)
-    list(GET _ver_list 2 GW2SCT_VER_PATCH)
-  endif()
-  if(_ver_len GREATER 3)
-    list(GET _ver_list 3 GW2SCT_VER_BUILD)
-  endif()
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc @ONLY)
-  target_sources(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
   # Generate RC that embeds only existing PNGs
   set(GW2SCT_RES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/resources")
   set(_RES_GEN "${CMAKE_CURRENT_BINARY_DIR}/resources_gen.rc")

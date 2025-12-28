@@ -25,6 +25,7 @@
 #include "imgui.h"
 #include "Options.h"
 #include "Language.h"
+#include "autoversion.h"
 
 namespace GW2_SCT {
 

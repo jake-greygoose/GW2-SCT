@@ -13,6 +13,7 @@
 #include "Texture.h"
 #include "Mumblelink.h"
 #include "Updater.h"
+#include "autoversion.h"
 #include <chrono>
 #include <queue>
 #include <mutex>
