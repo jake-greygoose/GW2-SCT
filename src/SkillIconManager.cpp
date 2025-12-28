@@ -112,10 +112,11 @@ static std::shared_ptr<std::vector<BYTE>> LoadEmbeddedSkillIcon(uint32_t skillId
     return bytes;
 }
 
-sf::contfree_safe_ptr<std::unordered_map<uint32_t, bool>> GW2_SCT::SkillIconManager::checkedIDs;
-sf::contfree_safe_ptr<std::unordered_map<uint32_t, GW2_SCT::SkillIcon>> GW2_SCT::SkillIconManager::loadedIcons;
-sf::contfree_safe_ptr<std::unordered_set<uint32_t>> GW2_SCT::SkillIconManager::embeddedIconIds;
-sf::contfree_safe_ptr<std::list<uint32_t>> GW2_SCT::SkillIconManager::requestedIDs;
+std::shared_mutex GW2_SCT::SkillIconManager::dataMutex;
+std::unordered_map<uint32_t, bool> GW2_SCT::SkillIconManager::checkedIDs;
+std::unordered_map<uint32_t, GW2_SCT::SkillIcon> GW2_SCT::SkillIconManager::loadedIcons;
+std::unordered_set<uint32_t> GW2_SCT::SkillIconManager::embeddedIconIds;
+std::list<uint32_t> GW2_SCT::SkillIconManager::requestedIDs;
 std::thread GW2_SCT::SkillIconManager::loadThread;
 int GW2_SCT::SkillIconManager::requestsPerMinute = 200;
 std::atomic<bool> GW2_SCT::SkillIconManager::keepLoadThreadRunning;
@@ -176,16 +177,13 @@ void GW2_SCT::SkillIconManager::init() {
 			if (wasEnabled == isNowEnabled) return;
 			if (isNowEnabled) {
 				std::thread t([]() {
-					requestedIDs->clear();
-					if (Options::get()->preloadAllSkillIcons) {
-						auto s_checkedIDs = sf::slock_safe_ptr(checkedIDs);
-						for (
-							auto checkableIDIterator = s_checkedIDs->begin();
-							checkableIDIterator != s_checkedIDs->end();
-							checkableIDIterator++
-						) {
-							if (!checkableIDIterator->second) {
-								requestedIDs->push_back(checkableIDIterator->first);
+					const bool preloadAll = Options::get()->preloadAllSkillIcons;
+					std::unique_lock<std::shared_mutex> lock(SkillIconManager::dataMutex);
+					SkillIconManager::requestedIDs.clear();
+					if (preloadAll) {
+						for (const auto& entry : SkillIconManager::checkedIDs) {
+							if (!entry.second) {
+								SkillIconManager::requestedIDs.push_back(entry.first);
 							}
 						}
 					}
@@ -255,29 +253,29 @@ void GW2_SCT::SkillIconManager::internalInit() {
 			}
 		}
 		bool preload = Options::get()->preloadAllSkillIcons;
-		checkedIDs->clear();
-		embeddedIconIds->clear();
-		for (const auto& skillId : skillIdList) {
-			checkedIDs->insert({ skillId, false });
-			if (preload) {
-				requestedIDs->push_back(skillId);
-			}
-		}
-		for (auto it : staticFiles) {
-			checkedIDs->insert({ it.first, false });
-			auto embedded = LoadEmbeddedSkillIcon((uint32_t)it.first);
-			if (embedded && !embedded->empty()) {
-				(*checkedIDs)[it.first] = true;
-				embeddedIconIds->insert(it.first);
-				// Replace any existing icon
-				auto existing = loadedIcons->find(it.first);
-				if (existing != loadedIcons->end()) {
-					existing->second = SkillIcon(embedded, (uint32_t)it.first);
-				} else {
-					loadedIcons->insert({ it.first, SkillIcon(embedded, (uint32_t)it.first) });
+		{
+			std::unique_lock<std::shared_mutex> lock(dataMutex);
+			checkedIDs.clear();
+			embeddedIconIds.clear();
+			for (const auto& skillId : skillIdList) {
+				checkedIDs[skillId] = false;
+				if (preload) {
+					requestedIDs.push_back(skillId);
 				}
 			}
-            }
+			for (const auto& entry : staticFiles) {
+				checkedIDs[entry.first] = false;
+			}
+		}
+		for (const auto& entry : staticFiles) {
+			auto embedded = LoadEmbeddedSkillIcon(entry.first);
+			if (embedded && !embedded->empty()) {
+				std::unique_lock<std::shared_mutex> lock(dataMutex);
+				checkedIDs[entry.first] = true;
+				embeddedIconIds.insert(entry.first);
+				loadedIcons.insert_or_assign(entry.first, SkillIcon(embedded, entry.first));
+			}
+        }
 
             spawnLoadThread();
         }
@@ -321,15 +319,17 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 		std::string iconPath = getSCTPath() + "icons\\";
 		CreateDirectory(iconPath.c_str(), NULL);
 		if (getFilesInDirectory(iconPath, files)) {
-			for (std::string iconFile : files) {
+			for (const std::string& iconFile : files) {
 				size_t itDot = iconFile.find_last_of(".");
 				std::string extension = iconFile.substr(itDot + 1);
 				if (extension == "jpg" || extension == "png") {
 					std::string fileName = iconFile.substr(0, itDot);
 					uint32_t skillID = std::strtoul(fileName.c_str(), NULL, 10);
 					if (skillID != 0) {
-						loadedIcons->insert({ skillID, SkillIcon(loadBinaryFileData(iconPath + iconFile), skillID) });
-						(*checkedIDs)[skillID] = true;
+						auto data = loadBinaryFileData(iconPath + iconFile);
+						std::unique_lock<std::shared_mutex> lock(dataMutex);
+						loadedIcons.insert_or_assign(skillID, SkillIcon(data, skillID));
+						checkedIDs[skillID] = true;
 						continue;
 					}
 				}
@@ -356,29 +356,50 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 	}
 		std::regex renderAPIURLMatcher("/file/([A-Z0-9]+)/([0-9]+)\\.(png|jpg)");
 		while (keepLoadThreadRunning) {
-		if (requestedIDs->size() > 0) {
 			std::list<std::tuple<uint32_t, std::string, std::string>> loadableIconURLs;
-			std::vector<uint32_t> idListToRequestFromApi = {};
+			std::vector<uint32_t> idListToRequestFromApi;
 			std::list<std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>> embeddedLoadedIcons;
-			while (requestedIDs->size() > 0 && idListToRequestFromApi.size() <= 10) {
-				int frontRequestedSkillId = requestedIDs->front();
-				requestedIDs->pop_front();
+			bool hadRequests = false;
 
-                auto embedded = LoadEmbeddedSkillIcon((uint32_t)frontRequestedSkillId);
-                if (embedded && !embedded->empty()) {
-                    embeddedLoadedIcons.push_back({ (uint32_t)frontRequestedSkillId, embedded });
-                    embeddedIconIds->insert((uint32_t)frontRequestedSkillId);
-                    continue;
-                }
+			while (keepLoadThreadRunning) {
+				uint32_t frontRequestedSkillId = 0;
+				{
+					std::unique_lock<std::shared_mutex> lock(dataMutex);
+					if (requestedIDs.empty()) {
+						break;
+					}
+					hadRequests = true;
+					frontRequestedSkillId = requestedIDs.front();
+					requestedIDs.pop_front();
+				}
+
+				auto embedded = LoadEmbeddedSkillIcon(frontRequestedSkillId);
+				if (embedded && !embedded->empty()) {
+					{
+						std::unique_lock<std::shared_mutex> lock(dataMutex);
+						embeddedIconIds.insert(frontRequestedSkillId);
+					}
+					embeddedLoadedIcons.push_back({ frontRequestedSkillId, embedded });
+					continue;
+				}
 
 				auto iteratorToFoundStaticFileInformation = staticFiles.find(frontRequestedSkillId);
 				if (iteratorToFoundStaticFileInformation != staticFiles.end()) {
 					loadableIconURLs.push_back({ iteratorToFoundStaticFileInformation->first, iteratorToFoundStaticFileInformation->second.first, iteratorToFoundStaticFileInformation->second.second });
 				} else {
 					idListToRequestFromApi.push_back(frontRequestedSkillId);
+					if (idListToRequestFromApi.size() > 10) {
+						break;
+					}
 				}
 			}
-			if (idListToRequestFromApi.size() > 0) {
+
+			if (!hadRequests) {
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				continue;
+			}
+
+			if (!idListToRequestFromApi.empty()) {
 				std::string idStringToRequestFromApi = join(idListToRequestFromApi, ",");
 				try {
 					std::this_thread::sleep_for(std::chrono::milliseconds(60000 / requestsPerMinute));
@@ -391,8 +412,11 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 							LOG("Skill icon detail fetch failed: ", e.what());
 							s_detailFetchWarned = true;
 						}
-						for (auto& unresolvedSkillId : idListToRequestFromApi) {
-							requestedIDs->push_back(unresolvedSkillId);
+						{
+							std::unique_lock<std::shared_mutex> lock(dataMutex);
+							for (auto& unresolvedSkillId : idListToRequestFromApi) {
+								requestedIDs.push_back(unresolvedSkillId);
+							}
 						}
 						std::this_thread::sleep_for(std::chrono::seconds(5));
 						continue;
@@ -411,8 +435,9 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 				}
 				catch (std::exception& e) {
 					LOG("Could not receive skill information for IDs: ", idStringToRequestFromApi, "(", e.what(), ")");
+					std::unique_lock<std::shared_mutex> lock(dataMutex);
 					for (auto& unresolvedSkillId : idListToRequestFromApi) {
-						requestedIDs->push_back(unresolvedSkillId);
+						requestedIDs.push_back(unresolvedSkillId);
 					}
 				}
 			}
@@ -423,8 +448,8 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 				uint32_t curSkillId = std::get<0>(*it);
 				try {
 					std::string desc = std::get<1>(*it) + "/" + std::get<2>(*it);
-					auto it = skillJsonValues.find(curSkillId);
-					std::string iniVal = it == skillJsonValues.end() ? "" : it->second;
+					auto itExisting = skillJsonValues.find(curSkillId);
+					std::string iniVal = itExisting == skillJsonValues.end() ? "" : itExisting->second;
 					std::string curImagePath = iconPath + std::to_string(curSkillId) + ".jpg";
 					std::string curImagePathPng = iconPath + std::to_string(curSkillId) + ".png";
 					if (iniVal.compare(desc) != 0 || (!std::filesystem::exists(curImagePath.c_str()) && !std::filesystem::exists(curImagePathPng.c_str()))) {
@@ -432,13 +457,13 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 #if _DEBUG
 						LOG("Downloading skill icon: ", curSkillId);
 #endif
-						
+
 						std::string downloadUrl = "https://render.guildwars2.com/file/" + desc;
 						if (downloadBinaryFile(downloadUrl, curImagePath)) {
 #if _DEBUG
 							LOG("Finished downloading skill icon.");
 #endif
-							binaryLoadedIcons.push_back(std::pair<uint32_t, std::shared_ptr<std::vector<BYTE>>>(curSkillId, loadBinaryFileData(curImagePath)));
+							binaryLoadedIcons.push_back({ curSkillId, loadBinaryFileData(curImagePath) });
 							skillJsonValues[curSkillId] = desc;
 						} else {
 							LOG("Failed to download skill icon: ", curSkillId);
@@ -448,18 +473,20 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 				}
 				catch (std::exception& e) {
 					LOG("Error during downloading skill icon image for skill ", std::to_string(curSkillId), ": ", e.what());
-					requestedIDs->push_back(curSkillId);
+					std::unique_lock<std::shared_mutex> lock(dataMutex);
+					requestedIDs.push_back(curSkillId);
 				}
 			}
-			while (binaryLoadedIcons.size() > 0 && keepLoadThreadRunning) {
-				(*checkedIDs)[binaryLoadedIcons.front().first] = true;
-				loadedIcons->insert(std::pair<uint32_t, SkillIcon>(binaryLoadedIcons.front().first, SkillIcon(binaryLoadedIcons.front().second, binaryLoadedIcons.front().first)));
+			while (!binaryLoadedIcons.empty() && keepLoadThreadRunning) {
+				auto current = binaryLoadedIcons.front();
+				{
+					std::unique_lock<std::shared_mutex> lock(dataMutex);
+					checkedIDs[current.first] = true;
+					loadedIcons.insert_or_assign(current.first, SkillIcon(current.second, current.first));
+				}
 				binaryLoadedIcons.pop_front();
 			}
-		} else {
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		}
-	}
 
 	std::ofstream out(skillJsonFilename);
 	nlohmann::json outJson = skillJsonValues;
@@ -482,57 +509,69 @@ void GW2_SCT::SkillIconManager::loadThreadCycle() {
 }
 
 GW2_SCT::SkillIcon* GW2_SCT::SkillIconManager::getIcon(uint32_t skillID) {
-    if (!Options::get()->skillIconsEnabled) {
-        return nullptr;
-    }
+	if (!Options::get()->skillIconsEnabled) {
+		return nullptr;
+	}
 
-    bool preferEmbedded = Options::get()->preferEmbeddedIcons;
-    auto itLoaded = loadedIcons->find(skillID);
+	const bool preferEmbedded = Options::get()->preferEmbeddedIcons;
 
-    if (preferEmbedded) {
-        if (embeddedIconIds->find(skillID) != embeddedIconIds->end()) {
-            if (itLoaded != loadedIcons->end()) {
-                return &itLoaded->second;
-            }
-        } else {
-            auto embedded = LoadEmbeddedSkillIcon(skillID);
-            if (embedded && !embedded->empty()) {
-                (*checkedIDs)[skillID] = true;
-                embeddedIconIds->insert(skillID);
-                if (itLoaded != loadedIcons->end()) {
-                    itLoaded->second = SkillIcon(embedded, skillID);
-                    return &itLoaded->second;
-                }
-                auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
-                return &ins.first->second;
-            }
-        }
-    } else {
-        if (itLoaded != loadedIcons->end()) {
-            return &itLoaded->second;
-        }
+	auto tryReturnLoaded = [&](bool requireEmbedded) -> SkillIcon* {
+		std::shared_lock<std::shared_mutex> lock(dataMutex);
+		auto it = loadedIcons.find(skillID);
+		if (it == loadedIcons.end()) {
+			return nullptr;
+		}
+		if (requireEmbedded) {
+			if (embeddedIconIds.find(skillID) == embeddedIconIds.end()) {
+				return nullptr;
+			}
+		}
+		return &it->second;
+	};
 
-        auto embedded = LoadEmbeddedSkillIcon(skillID);
-        if (embedded && !embedded->empty()) {
-            (*checkedIDs)[skillID] = true;
-            embeddedIconIds->insert(skillID);
-            auto ins = loadedIcons->insert({ skillID, SkillIcon(embedded, skillID) });
-            return &ins.first->second;
-        }
-    }
+	auto tryLoadEmbedded = [&]() -> SkillIcon* {
+		auto embedded = LoadEmbeddedSkillIcon(skillID);
+		if (embedded && !embedded->empty()) {
+			std::unique_lock<std::shared_mutex> lock(dataMutex);
+			checkedIDs[skillID] = true;
+			embeddedIconIds.insert(skillID);
+			auto it = loadedIcons.insert_or_assign(skillID, SkillIcon(embedded, skillID)).first;
+			return &it->second;
+		}
+		return nullptr;
+	};
 
-    if (itLoaded != loadedIcons->end()) {
-        return &itLoaded->second;
-    }
+	if (preferEmbedded) {
+		if (auto icon = tryReturnLoaded(true)) {
+			return icon;
+		}
+		if (auto icon = tryLoadEmbedded()) {
+			return icon;
+		}
+	} else {
+		if (auto icon = tryReturnLoaded(false)) {
+			return icon;
+		}
+		if (auto icon = tryLoadEmbedded()) {
+			return icon;
+		}
+	}
 
-    if (!Options::get()->preloadAllSkillIcons) {
-        if (!(*checkedIDs)[skillID]) {
-            requestedIDs->push_back(skillID);
-            return nullptr;
-        }
-    }
+	if (auto icon = tryReturnLoaded(false)) {
+		return icon;
+	}
 
-    return nullptr;
+	if (!Options::get()->preloadAllSkillIcons) {
+		std::unique_lock<std::shared_mutex> lock(dataMutex);
+		auto checked = checkedIDs.find(skillID);
+		bool isChecked = checked != checkedIDs.end() && checked->second;
+		if (!isChecked) {
+			checkedIDs[skillID] = false;
+			requestedIDs.push_back(skillID);
+		}
+	}
+
+	return nullptr;
 }
 
 ImVec2 GW2_SCT::SkillIcon::draw(ImVec2 pos, ImVec2 size, ImU32 color) {

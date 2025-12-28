@@ -3,11 +3,12 @@
 #include "OptionsStructures.h"
 #include <memory>
 #include <queue>
+#include <list>
 #include <unordered_map>
 #include <unordered_set>
 #include <mutex>
+#include <shared_mutex>
 #include <imgui.h>
-#include <safe_ptr.h>
 #include <atomic>
 namespace GW2_SCT {
 	class SkillIcon {
@@ -38,11 +39,13 @@ namespace GW2_SCT {
 		static void spawnLoadThread();
 		static void loadThreadCycle();
 		static int requestsPerMinute;
+		// Replaces the old object_threadsafe safe_ptr wrappers with explicit locking
+		static std::shared_mutex dataMutex;
 		static std::unordered_map<uint32_t, std::pair<std::string, std::string>> staticFiles;
-		static sf::contfree_safe_ptr<std::unordered_map<uint32_t, bool>> checkedIDs;
-		static sf::contfree_safe_ptr<std::list<uint32_t>> requestedIDs;
-		static sf::contfree_safe_ptr<std::unordered_map<uint32_t, SkillIcon>> loadedIcons;
-		static sf::contfree_safe_ptr<std::unordered_set<uint32_t>> embeddedIconIds;
+		static std::unordered_map<uint32_t, bool> checkedIDs;
+		static std::list<uint32_t> requestedIDs;
+		static std::unordered_map<uint32_t, SkillIcon> loadedIcons;
+		static std::unordered_set<uint32_t> embeddedIconIds;
 		static std::thread loadThread;
 		static std::atomic<bool> keepLoadThreadRunning;
 		static long skillIconsEnabledCallbackId;
