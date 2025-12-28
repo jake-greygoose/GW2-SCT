@@ -107,7 +107,7 @@ extern std::string AbbreviateSkillName(const std::string& skillName);
 extern std::string ShortenNumber(double number, int precision = 0);
 
 /* combat event */
-typedef struct cbtevent {
+struct cbtevent {
 	uint64_t time; /* timegettime() at time of event */
 	uint64_t src_agent; /* unique identifier */
 	uint64_t dst_agent; /* unique identifier */
@@ -143,7 +143,7 @@ typedef struct cbtevent {
 };
 
 /* combat event - for logging (revision 1, when byte16 == 1) */
-typedef struct cbtevent1 {
+struct cbtevent1 {
 	uint64_t time; /* timegettime() at time of event */
 	uint64_t src_agent; /* unique identifier */
 	uint64_t dst_agent; /* unique identifier */

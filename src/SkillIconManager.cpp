@@ -665,7 +665,9 @@ void setScaledTransparency(unsigned char* cur) {
 	int r = cur[0];
 	int g = cur[1];
 	int b = cur[2];
-	cur[3] = std::min(0xfe, (r + r + r + b + g + g + g + g) >> 3 * 0xff / 10);
+	const int brightness = (r + r + r + b + g + g + g + g) >> 3;
+	const int scaledAlpha = brightness * 0xff / 10;
+	cur[3] = static_cast<unsigned char>(std::min(0xfe, std::max(0, scaledAlpha)));
 }
 
 bool pixelIsBlack(unsigned char* cur) {

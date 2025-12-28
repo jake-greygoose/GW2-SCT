@@ -57,16 +57,18 @@ GW2_SCT::Glyph* GW2_SCT::Glyph::GetGlyph(const stbtt_fontinfo* font, float scale
 }
 
 void GW2_SCT::Glyph::cleanup() {
-    for (const auto& fontPair : _knownGlyphs) {
-        for (const auto& scalePair : fontPair.second) {
-            for (const auto& codepointPair : scalePair.second) {
-                if (codepointPair.second != nullptr) delete codepointPair.second;
-            }
-            scalePair.second.empty();
-        }
-        fontPair.second.empty();
-    }
-    _knownGlyphs.empty();
+	for (auto& fontPair : _knownGlyphs) {
+		for (auto& scalePair : fontPair.second) {
+			for (auto& codepointPair : scalePair.second) {
+				if (codepointPair.second != nullptr) {
+					delete codepointPair.second;
+				}
+			}
+			scalePair.second.clear();
+		}
+		fontPair.second.clear();
+	}
+	_knownGlyphs.clear();
 }
 
 int GW2_SCT::Glyph::getX1() { return _x1; }
@@ -157,10 +159,10 @@ void GW2_SCT::FontType::ensureAtlasCreation() {
 
 void GW2_SCT::FontType::cleanup() {
     std::lock_guard lock(_allocatedAtlassesMutex);
-    for (auto atlas : _allocatedAtlases) {
-        delete atlas;
-    }
-    _allocatedAtlases.empty();
+	for (auto atlas : _allocatedAtlases) {
+		delete atlas;
+	}
+	_allocatedAtlases.clear();
 
     std::lock_guard updateLock(pendingAtlasUpdatesMutex);
     pendingAtlasUpdates.clear();
