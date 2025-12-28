@@ -119,7 +119,7 @@ void MumbleLink::onUpdate() {
         
         if (pMumbleData->identity[0] != L'\0') {
             try {
-                std::wstring identityWStr(pMumbleData->identity);
+                std::wstring identityWStr(pMumbleData->identity, 256);
                 std::string identityStr;
                 if (!Utf::WideToUtf8(identityWStr, identityStr) || identityStr.empty()) {
                     throw std::runtime_error("Could not convert identity string to UTF-8");
