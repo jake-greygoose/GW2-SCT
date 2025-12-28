@@ -1,10 +1,11 @@
 #include "Mumblelink.h"
 #include "Common.h"
+#include "UtfUtils.h"
 #include "json.hpp"
-#include <codecvt>
 #include <locale>
 #include <sstream>
 #include <set>
+#include <stdexcept>
 
 namespace GW2_SCT {
 
@@ -52,7 +53,10 @@ bool MumbleLink::initialize() {
         return true;
     }
 
-    std::string linkNameStr(linkName.begin(), linkName.end());
+    std::string linkNameStr = Utf::WideToUtf8(linkName);
+    if (linkNameStr.empty()) {
+        linkNameStr = "MumbleLink";
+    }
     
     if (linkNameStr == "MumbleLink") {
         hMapFile = OpenFileMappingW(FILE_MAP_READ, FALSE, linkName.c_str());
@@ -116,14 +120,19 @@ void MumbleLink::onUpdate() {
         if (pMumbleData->identity[0] != L'\0') {
             try {
                 std::wstring identityWStr(pMumbleData->identity);
-                std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-                std::string identityStr = converter.to_bytes(identityWStr);
+                std::string identityStr;
+                if (!Utf::WideToUtf8(identityWStr, identityStr) || identityStr.empty()) {
+                    throw std::runtime_error("Could not convert identity string to UTF-8");
+                }
                 
                 auto identityJson = nlohmann::json::parse(identityStr);
                 
                 if (identityJson.contains("name") && identityJson["name"].is_string()) {
                     std::string characterNameStr = identityJson["name"];
-                    newCharacterName = converter.from_bytes(characterNameStr);
+                    std::wstring convertedName;
+                    if (Utf::Utf8ToWide(characterNameStr, convertedName)) {
+                        newCharacterName = std::move(convertedName);
+                    }
                 }
                 
                 if (identityJson.contains("map_id") && identityJson["map_id"].is_number()) {

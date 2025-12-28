@@ -1,5 +1,5 @@
 #include "httpclient.h"
-#include <codecvt>
+#include "UtfUtils.h"
 #include <locale>
 
 
@@ -90,11 +90,11 @@ namespace HTTPClient {
     }
 
     std::wstring StringToWString(const std::string& str) {
-        if (str.empty()) return std::wstring();
-        int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-        std::wstring wstrTo(size_needed, 0);
-        MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-        return wstrTo;
+        std::wstring converted;
+        if (!GW2_SCT::Utf::Utf8ToWide(str, converted)) {
+            return std::wstring();
+        }
+        return converted;
     }
 
     std::future<std::string> GetRequestAsync(const std::wstring& wUrl) {
