@@ -716,7 +716,7 @@ void convertRGBAToARGBAndCull(unsigned char* image_data, int image_width, int im
 				if (pixelIndex.first - 1 > 0) pixelsToResolve.push(std::pair<int, int>(pixelIndex.first - 1, pixelIndex.second));
 				if (pixelIndex.second - 1 > 0) pixelsToResolve.push(std::pair<int, int>(pixelIndex.first, pixelIndex.second - 1));
 				if (pixelIndex.first + 1 < image_width) pixelsToResolve.push(std::pair<int, int>(pixelIndex.first + 1, pixelIndex.second));
-				if (pixelIndex.first + 1 < image_height) pixelsToResolve.push(std::pair<int, int>(pixelIndex.first, pixelIndex.second + 1));
+				if (pixelIndex.second + 1 < image_height) pixelsToResolve.push(std::pair<int, int>(pixelIndex.first, pixelIndex.second + 1));
 			}
 		}
 	}
