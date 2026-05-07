@@ -10,7 +10,7 @@ ImVec2 CalcTextSizeWithFontSize(const char* text, ImFont* font, float font_size)
 	ImVec2 text_size = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, text);
 
 	// Cancel out character spacing for the last character of a line (it is baked into glyph->XAdvance field)
-	const float font_scale = font_size / font->FontSize;
+	const float font_scale = font_size / font->LegacySize;
 	const float character_spacing_x = 1.0f * font_scale;
 	if (text_size.x > 0.0f)
 		text_size.x -= character_spacing_x;

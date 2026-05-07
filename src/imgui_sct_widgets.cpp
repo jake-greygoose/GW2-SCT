@@ -1,3 +1,4 @@
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui_sct_widgets.h"
 #include "SkillFilterUI.h"
 #include <sstream>
@@ -7,7 +8,6 @@
 #include <algorithm>
 #include <imgui.h>
 #include <imgui_stdlib.h>
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_internal.h>
 #include "Language.h"
 #include "Common.h"
@@ -25,9 +25,9 @@ constexpr const int& clampi(const int& v, const int& lo, const int& hi) {
 static bool g_NewReceiverHideCrit = false;
 void ImGui::SetNewReceiverHideCrit(bool hide) { g_NewReceiverHideCrit = hide; }
 
-bool ImGui::ClampingDragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* display_format, float power) {
+bool ImGui::ClampingDragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* display_format, ImGuiSliderFlags flags) {
 	float start = *v;
-	DragFloat(label, v, v_speed, v_min, v_max, display_format, power);
+	DragFloat(label, v, v_speed, v_min, v_max, display_format, flags);
 	*v = clampf(*v, v_min, v_max);
 	return start != *v;
 }
@@ -64,14 +64,14 @@ void ImGui::SameLineEnd(float offset_from_end_x) {
 int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_receiver_options_struct> receiverOptions) {
 	int returnFlags = 0;
 	const ImGuiStyle& style = GImGui->Style;
-	const float square_size = GImGui->FontSize;
+	const float square_size = GetFontSize();
 
 	bool isOpen = false;
 	std::string indexString = std::to_string(index);
 	std::string deleteModalLabel = BuildLabel(langString(GW2_SCT::LanguageCategory::Receiver_Option_UI, GW2_SCT::LanguageKey::Delete_Confirmation_Title), "receiver-delete-modal", indexString);
-	if (TreeNodeEx(BuildLabel("receiver-collapsible", std::to_string(index)).c_str(), ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_AllowItemOverlap | ImGuiTreeNodeFlags_NoAutoOpenOnLog)) {
+	if (TreeNodeEx(BuildLabel("receiver-collapsible", std::to_string(index)).c_str(), ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_AllowOverlap | ImGuiTreeNodeFlags_NoAutoOpenOnLog)) {
 		isOpen = true;
-		SameLine(style.FramePadding.x * 3 + GImGui->FontSize);
+		SameLine(style.FramePadding.x * 3 + GetFontSize());
 		Text(receiverOptions->name.c_str());
 		SameLineEnd(2 * (square_size + style.FramePadding.y * 2) + style.ItemInnerSpacing.x);
 		HexColorEdit(BuildLabel("receiver-color-picker", indexString).c_str(), &receiverOptions->color);
@@ -343,7 +343,7 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 		TreePop();
 	}
 	if (!isOpen) {
-		SameLine(style.FramePadding.x * 3 + GImGui->FontSize);
+		SameLine(style.FramePadding.x * 3 + GetFontSize());
 		Text(receiverOptions->name.c_str());
 		SameLineEnd(2 * (square_size + style.FramePadding.y * 2) + style.ItemInnerSpacing.x);
 		HexColorEdit(BuildLabel("receiver-color-picker", indexString).c_str(), &receiverOptions->color);
@@ -374,7 +374,7 @@ int ImGui::ReceiverCollapsible(int index, std::shared_ptr<GW2_SCT::message_recei
 
 bool ImGui::NewReceiverLine(GW2_SCT::MessageCategory* categoryOut, GW2_SCT::MessageType* typeOut) {
 	const ImGuiStyle& style = GImGui->Style;
-	const float button_size = GImGui->FontSize + style.FramePadding.y * 2;
+	const float button_size = GetFontSize() + style.FramePadding.y * 2;
 	const float item_width = (GImGui->CurrentWindow->Size.x - 1 * button_size - 2 * style.ItemInnerSpacing.x - (GImGui->CurrentWindow->ScrollbarY ? style.ScrollbarSize : 0)) / 2;
 	PushItemWidth(item_width);
 
@@ -430,7 +430,7 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::SkillFilter* opt) {
 
 	ImGuiContext& g = *GImGui;
 	const ImGuiStyle& style = g.Style;
-	const float square_size = g.FontSize;
+	const float square_size = GetFontSize();
 	const float available_size = window->Size.x - (square_size + style.FramePadding.y * 2) - (window->ScrollbarY ? style.ScrollbarSize : 0) - 2 * style.WindowPadding.x;
 	int value_changed = 0;
 
@@ -510,16 +510,6 @@ int ImGui::FilterOptionLine(uint32_t i, GW2_SCT::SkillFilter* opt) {
 	ImGui::EndGroup();
 
 	return value_changed;
-}
-
-void ImGui::BeginDisabled() {
-	ImGui::PushItemFlag(ImGuiItemFlags_Disabled, true);
-	ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-}
-
-void ImGui::EndDisabled() {
-	ImGui::PopStyleColor();
-	ImGui::PopItemFlag();
 }
 
 bool ImGui::HasWindow() {

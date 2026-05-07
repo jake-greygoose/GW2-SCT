@@ -43,11 +43,8 @@ bool NewReceiverLine(GW2_SCT::MessageCategory* categoryOut, GW2_SCT::MessageType
 // Control new-receiver type visibility tweaks
 void SetNewReceiverHideCrit(bool hide);
 	int FilterOptionLine(uint32_t id, GW2_SCT::SkillFilter* opt);
-	bool ClampingDragFloat(const char* label, float* v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* display_format = "%.3f", float power = 1.0f);
+	bool ClampingDragFloat(const char* label, float* v, float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f, const char* display_format = "%.3f", ImGuiSliderFlags flags = 0);
 	bool ClampingDragInt(const char* label, int* v, float v_speed = 1.0f, int v_min = 0, int v_max = 0, const char* display_format = "%.0f");
-
-	void BeginDisabled();
-	void EndDisabled();
 
 	bool HasWindow();
 }

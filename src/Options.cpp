@@ -205,6 +205,7 @@ void GW2_SCT::Options::paint(const std::vector<std::shared_ptr<ScrollArea>>& scr
 	if (windowIsOpen) {
 		ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.60f, 0.60f, 0.60f, 0.30f));
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+		ImGui::SetNextWindowSize(ImVec2(900.0f, 650.0f), ImGuiCond_FirstUseEver);
 		ImGui::Begin(langString(LanguageCategory::Option_UI, LanguageKey::Title), &windowIsOpen, ImGuiWindowFlags_NoCollapse);
 
 		ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
@@ -532,7 +533,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 			if (ImGui::Selectable(
 				ImGui::BuildLabel("scroll-area-selectable", i).c_str(),
 				selectedScrollArea == i,
-				ImGuiSelectableFlags_AllowItemOverlap,
+				ImGuiSelectableFlags_AllowOverlap,
 				ImVec2(0, square_size + style.FramePadding.y * 2))) {
 				selectedScrollArea = i;
 			}
@@ -630,62 +631,72 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 
 			ImGui::Separator();
 
-			ImGui::Columns(2, "position_columns", false);
-			ImGui::SetColumnWidth(0, 150);
-			
-			ImGui::Text("Horizontal Offset");
-			ImGui::NextColumn();
-			if (ImGui::InputFloat("##horizontal_offset", &scrollAreaOptions->offsetX, 1.0f, 10.0f)) {
-				scrollAreaOptions->offsetX = std::clamp(scrollAreaOptions->offsetX, -windowWidth / 2.f, windowWidth / 2.f);
-				requestSave();
+			if (ImGui::BeginTable("position_columns", 2, ImGuiTableFlags_SizingFixedFit)) {
+				ImGui::TableSetupColumn("label", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+				ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Horizontal Offset");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::InputFloat("##horizontal_offset", &scrollAreaOptions->offsetX, 1.0f, 10.0f)) {
+					scrollAreaOptions->offsetX = std::clamp(scrollAreaOptions->offsetX, -windowWidth / 2.f, windowWidth / 2.f);
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Vertical Offset");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::InputFloat("##vertical_offset", &scrollAreaOptions->offsetY, 1.0f, 10.0f)) {
+					scrollAreaOptions->offsetY = std::clamp(scrollAreaOptions->offsetY, -windowHeight / 2.f, windowHeight / 2.f);
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Width");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::InputFloat("##width", &scrollAreaOptions->width, 1.0f, 10.0f)) {
+					scrollAreaOptions->width = std::clamp(scrollAreaOptions->width, 1.f, (float)windowWidth);
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Height");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::InputFloat("##height", &scrollAreaOptions->height, 1.0f, 10.0f)) {
+					scrollAreaOptions->height = std::clamp(scrollAreaOptions->height, 1.f, (float)windowHeight);
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Text Align");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::Combo("##text_align", (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text("Text Flow");
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 5)) {
+					requestSave();
+				}
+
+				ImGui::TableNextRow();
+				ImGui::TableSetColumnIndex(0);
+				ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Scroll_Direction));
+				ImGui::TableSetColumnIndex(1);
+				if (ImGui::Combo("##scroll_direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
+					requestSave();
+				}
+
+				ImGui::EndTable();
 			}
-			ImGui::NextColumn();
-			
-			ImGui::Text("Vertical Offset");
-			ImGui::NextColumn();
-			if (ImGui::InputFloat("##vertical_offset", &scrollAreaOptions->offsetY, 1.0f, 10.0f)) {
-				scrollAreaOptions->offsetY = std::clamp(scrollAreaOptions->offsetY, -windowHeight / 2.f, windowHeight / 2.f);
-				requestSave();
-			}
-			ImGui::NextColumn();
-			
-			ImGui::Text("Width");
-			ImGui::NextColumn();
-			if (ImGui::InputFloat("##width", &scrollAreaOptions->width, 1.0f, 10.0f)) {
-				scrollAreaOptions->width = std::clamp(scrollAreaOptions->width, 1.f, (float)windowWidth);
-				requestSave();
-			}
-			ImGui::NextColumn();
-			
-			ImGui::Text("Height");
-			ImGui::NextColumn();
-			if (ImGui::InputFloat("##height", &scrollAreaOptions->height, 1.0f, 10.0f)) {
-				scrollAreaOptions->height = std::clamp(scrollAreaOptions->height, 1.f, (float)windowHeight);
-				requestSave();
-			}
-			ImGui::NextColumn();
-			
-			ImGui::Text("Text Align");
-			ImGui::NextColumn();
-			if (ImGui::Combo("##text_align", (int*)&scrollAreaOptions->textAlign, TextAlignTexts, 3)) {
-				requestSave();
-			}
-			ImGui::NextColumn();
-			
-			ImGui::Text("Text Flow");
-			ImGui::NextColumn();
-			if (ImGui::Combo("##text_flow", (int*)&scrollAreaOptions->textCurve, TextCurveTexts, 5)) {
-				requestSave();
-			}
-			ImGui::NextColumn();
-			
-			ImGui::Text(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Scroll_Direction));
-			ImGui::NextColumn();
-			if (ImGui::Combo("##scroll_direction", (int*)&scrollAreaOptions->scrollDirection, ScrollDirectionTexts, 2)) {
-				requestSave();
-			}
-			
-			ImGui::Columns(1);
 
 			// Advanced Options - collapsible section
 			if (ImGui::CollapsingHeader(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Advanced_Options))) {
@@ -699,7 +710,7 @@ void GW2_SCT::Options::paintScrollAreas(const std::vector<std::shared_ptr<Scroll
 					if (currentSelection > 4) currentSelection = 4;
 					
 					ImGui::SetNextItemWidth(120);
-					if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Shorten_Numbers), &currentSelection, precisionOptions, IM_ARRAYSIZE(precisionOptions))) {
+					if (ImGui::Combo(langString(GW2_SCT::LanguageCategory::Scroll_Area_Option_UI, GW2_SCT::LanguageKey::Shorten_Numbers), &currentSelection, precisionOptions, IM_COUNTOF(precisionOptions))) {
 						scrollAreaOptions->shortenNumbersPrecision = currentSelection - 1;
 						requestSave();
 					}

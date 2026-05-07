@@ -245,7 +245,8 @@ void GW2_SCT::Profiles::paintUI() {
 	if (ImGui::BeginChild("ActiveProfileStatus", ImVec2(0, 120), true)) {
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 8.0f));
 		ImGui::Text(langString(LanguageCategory::Profile_Option_UI, LanguageKey::Active_Profile_Title));
-		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
+		ImFont* defaultFont = ImGui::GetIO().Fonts->Fonts[0];
+		ImGui::PushFont(defaultFont, defaultFont->LegacySize);
 		ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "%s", currentProfileName.c_str());
 		ImGui::PopFont();
 		
