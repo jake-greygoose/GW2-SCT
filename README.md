@@ -3,6 +3,8 @@
 ![GitHub Release](https://img.shields.io/github/v/release/jake-greygoose/GW2-SCT?include_prereleases)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/jake-greygoose/GW2-SCT/build.yml)
 
+I've updated this to Imgui 1.92.7 because I know people still want to use it.
+However, there is no reason to use it over Ideka's https://github.com/ideka/custom-combat-text-public unless you don't use the Nexus addon loader.
 
 This addon overlays local combat data in highly configurable scroll areas.
 It can be used as a replacement for, or in addition to, the in game combat text.
