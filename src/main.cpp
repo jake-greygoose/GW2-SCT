@@ -21,7 +21,7 @@ arcdps_exports arc_exports;
 HMODULE g_hModule = nullptr;
 void dll_init(HANDLE hModule);
 void dll_exit();
-extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t d3dversion);
+extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t imguiversion);
 extern "C" __declspec(dllexport) void* get_release_addr();
 extern "C" __declspec(dllexport) const wchar_t* get_update_url();
 arcdps_exports* mod_init();
@@ -49,21 +49,24 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID reserved) {
 	return TRUE;
 }
 /* export -- arcdps looks for this exported function and calls the address it returns on client load */
-extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t d3dversion) {
+extern "C" __declspec(dllexport) void* get_init_addr(char* arcversion, ImGuiContext* imguictx, void* id3dptr, HANDLE arcdll, void* mallocfn, void* freefn, uint32_t imguiversion) {
 	arcvers = arcversion;
 	ImGui::SetCurrentContext((ImGuiContext*)imguictx);
 	ImGui::SetAllocatorFunctions((void *(*)(size_t, void*))mallocfn, (void(*)(void*, void*))freefn); // on imgui 1.80+
-	GW2_SCT::d3dversion = d3dversion;
+	GW2_SCT::d3dversion = 11;
 
 	auto arcLogWindow = reinterpret_cast<size_t (*)(char*)>(GetProcAddress((HMODULE)arcdll, "e8"));
 	SetArcDpsLogFunctions(arcLogWindow);
+	if (imguiversion != IMGUI_VERSION_NUM) {
+		LOG("WARNING: arcdps ImGui version ", imguiversion, " differs from SCT ImGui version ", IMGUI_VERSION_NUM);
+	}
 
 	std::string arcversString(arcvers);
 	arcversString = arcversString.substr(0, arcversString.find_first_of('.'));
 	
-	if (d3dversion == 11) {
+	if (id3dptr != nullptr) {
 		GW2_SCT::d3d11SwapChain = (IDXGISwapChain*)id3dptr;
-		ID3D11Device* d3Device11;
+		ID3D11Device* d3Device11 = nullptr;
 		((IDXGISwapChain*)id3dptr)->GetDevice(__uuidof(ID3D11Device), (void**)&d3Device11);
 		if (d3Device11 != nullptr) {
 			ID3D11DeviceContext* d3D11Context;

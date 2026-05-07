@@ -151,7 +151,7 @@ arcdps_exports* GW2_SCT::SCTMain::Init(char* arcvers, void* mod_wnd, void* mod_c
 	arc_exports.wnd_nofilter = mod_wnd;
 	arc_exports.combat = mod_combat;
 	arc_exports.imgui = mod_imgui;
-	arc_exports.options_end = mod_options;
+	arc_exports.options_tab = mod_options;
 	arc_exports.combat_local = mod_combat_local;
 	return &arc_exports;
 }
@@ -176,26 +176,15 @@ uintptr_t GW2_SCT::SCTMain::WindowUpdate(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 }
 
 uintptr_t GW2_SCT::SCTMain::CombatEventArea(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) {
-	if (ev != nullptr) {
-		if (revision == 1) {
-			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
-			if (src && src->self) {
-				selfInstID = ev1->src_instid;
-			}
-		}
-		else {
-			if (src && src->self) {
-				selfInstID = ev->src_instid;
-			}
-		}
-	}
-
-	return 0;
+	return CombatEventLocal(ev, src, dst, skillname, id, revision);
 }
 
 uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, char* skillname, uint64_t id, uint64_t revision) {
 	/* combat event. skillname may be null. non-null skillname will remain static until module is unloaded. refer to evtc notes for complete detail */
 	if (ev) {
+		if (!src || !dst) {
+			return 0;
+		}
 		if (revision == 1) {
 			cbtevent1* ev1 = reinterpret_cast<cbtevent1*>(ev);
 
@@ -326,8 +315,8 @@ uintptr_t GW2_SCT::SCTMain::CombatEventLocal(cbtevent* ev, ag* src, ag* dst, cha
 		}
 	}
 	else {
-		// Target agent handling when ev is null
-		if (src != nullptr) {
+		// Target agent handling when ev is null and src->elite is set, per arcdps extension API.
+		if (src != nullptr && src->elite == 1) {
 			targetAgentId = src->id;
 		}
 	}
